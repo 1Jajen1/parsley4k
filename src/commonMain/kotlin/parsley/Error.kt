@@ -14,7 +14,7 @@ sealed class ParseError<out I, out E> {
     ): ParseError<I, E>()
 }
 
-
+// This is not always great...
 fun <I, E> ParseError<I, E>.longestMatch(other: ParseError<I, E>): ParseError<I, E> = when {
     offset > other.offset -> this
     offset < other.offset -> other

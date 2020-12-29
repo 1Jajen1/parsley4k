@@ -19,6 +19,7 @@ internal class Satisfy<I, E>(
                 machine.consume()
                 machine.dataStack.push(i)
             } else {
+                // TODO Helpers for this...
                 if (error is ParseError.Trivial)
                     error = (error as ParseError.Trivial<I>).copy(unexpected = ErrorItem.Tokens(i))
                 error.offset = machine.inputOffset

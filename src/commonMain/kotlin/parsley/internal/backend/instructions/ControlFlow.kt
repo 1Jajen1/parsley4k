@@ -1,6 +1,7 @@
 package parsley.internal.backend.instructions
 
 import arrow.Either
+import parsley.ErrorItem
 import parsley.ParseError
 import parsley.internal.backend.CanFail
 import parsley.internal.backend.Handler
@@ -22,18 +23,13 @@ internal class JumpOnFailHandler<I, E>(
     val stackOffset: Int,
     val to: Int
 ) : Handler<I, E> {
-    var currentError: ParseError<I, E>? = null
     override fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>) {
         if (machine.inputOffset != offset) {
             return machine.failWith(error)
         }
         while (stackOffset > machine.dataStack.size()) machine.dataStack.pop()
-        if (currentError != null) {
-            machine.failWith(currentError!!.longestMatch(error))
-        } else {
-            machine.jump(to)
-            currentError = error
-        }
+        machine.lastError = if (machine.lastError != null) machine.lastError!!.longestMatch(error) else error
+        machine.jump(to)
     }
 }
 
@@ -84,6 +80,7 @@ internal class Jump<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
 
 internal class Fail<I, E>(override var error: ParseError<I, E>) : Instruction<I, E>, CanFail<I, E> {
     override fun apply(machine: StackMachine<I, E>) {
+        error.offset = machine.inputOffset
         machine.failWith(error)
     }
 
@@ -109,24 +106,20 @@ internal class JumpOnFailAndFailOnSuccessHandler<I, E>(
     val stackOffset: Int,
     val to: Int
 ) : Handler<I, E> {
-    var err: ParseError<I, E>? = null
-
     override fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>) {
         while (stackOffset > machine.dataStack.size()) machine.dataStack.pop()
-        err = error
         machine.inputOffset = offset
         machine.jump(to)
     }
 
     override fun onRemove(machine: StackMachine<I, E>) {
-        if (err != null) {
-            machine.failWith(ParseError.Trivial(offset = machine.inputOffset))
-            machine.inputOffset = offset
-        }
+        machine.inputOffset = offset
+        val fst = if (machine.hasMore()) ErrorItem.Tokens(machine.take()) else ErrorItem.EndOfInput
+        machine.failWith(ParseError.Trivial(unexpected = fst, offset = machine.inputOffset))
     }
 }
 
-internal class JumpOnRight<I, E>(override var to: Int): Instruction<I, E>, Jumps {
+internal class JumpOnRight<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: StackMachine<I, E>) {
         val top = machine.dataStack.pop() as Either<Any?, Any?>
         top.fold({}, {

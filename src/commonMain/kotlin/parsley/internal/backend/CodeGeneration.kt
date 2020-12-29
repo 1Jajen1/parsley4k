@@ -5,6 +5,7 @@ import arrow.ConstOf
 import arrow.fix
 import arrow.value
 import parsley.ErrorItem
+import parsley.ParseError
 import parsley.Parser
 import parsley.internal.backend.instructions.Apply
 import parsley.internal.backend.instructions.Call
@@ -83,7 +84,7 @@ internal class DefaultCodeGen<I, E> : CodeGenFunc<I, E> {
                 val badLabel = context.mkLabel()
                 listOf(JumpOnFail<I, E>(badLabel)) +
                         p.left.value() + PopHandler() + Jump(goodLabel) + Label(badLabel) +
-                        p.right.value() + PopHandler() + Label(goodLabel)
+                        p.right.value() + Label(goodLabel)
             }
             is ParserF.Empty -> {
                 listOf(Fail(p.error))
@@ -101,7 +102,7 @@ internal class DefaultCodeGen<I, E> : CodeGenFunc<I, E> {
                 val badLabel = context.mkLabel()
                 listOf(JumpOnFailAndFailOnSuccess<I, E>(badLabel)) +
                         p.p.value() + PopHandler() +
-                        Label(badLabel) + PopHandler() + Push(Unit)
+                        Label(badLabel) + Push(Unit)
             }
             is ParserF.Select<CodeGen<I, E>, *, *> -> {
                 val rightLabel = context.mkLabel()

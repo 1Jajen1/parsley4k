@@ -1,9 +1,11 @@
-package parsley.combinators
+package parsley.string
 
 import parsley.ErrorItem
 import parsley.FancyError
 import parsley.ParseError
 import parsley.Parser
+import parsley.combinators.followedBy
+import parsley.combinators.pure
 import parsley.single
 import kotlin.math.max
 
@@ -14,6 +16,7 @@ fun string(str: String): Parser<Char, Nothing, String> =
         char(c).followedBy(acc)
     }.followedBy(Parser.pure(str))
 
+// TODO Some parts of error printing should be moved to generic
 // Showing errors produced by Char parsers
 // Errors
 fun Char.toTokens(): ErrorItem<Char> = ErrorItem.Tokens(this, emptyList())

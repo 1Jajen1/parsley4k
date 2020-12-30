@@ -13,11 +13,27 @@ fun <I, E, A> Parser<I, E, A>.orElse(p: Parser<I, E, A>): Parser<I, E, A> = Pars
 
 // TODO explore optimization ideas.
 fun <I, E, A> Parser<I, E, A>.many(): Parser<I, E, List<A>> {
-    lateinit var p: Parser<I, E, List<A>>
-    p = this.map { a -> { xs: List<A> -> listOf(a) + xs } }
+    lateinit var p: Parser<I, E, IList<A>>
+    p = this.map { a -> { xs: IList<A> -> IList.Cons(a, xs) } }
         .ap(Parser.recursive { p })
-        .alt(Parser.pure(emptyList()))
-    return p
+        .alt(Parser.pure(IList.Nil))
+    return p.map { it.toList() }
+}
+
+sealed class IList<out A> {
+    object Nil : IList<Nothing>()
+    class Cons<out A>(val a: A, val tail: IList<A>): IList<A>()
+
+    fun toList(): List<A> {
+        val mut = mutableListOf<A>()
+        var curr = this
+        while (curr !== Nil) {
+            val cons = curr as Cons
+            mut.add(cons.a)
+            curr = cons.tail
+        }
+        return mut
+    }
 }
 
 fun <I, E, A> Parser<I, E, A>.some(): Parser<I, E, NonEmptyList<A>> =

@@ -1,0 +1,36 @@
+apply plugin: 'kotlinx.benchmark'
+
+apply from: rootProject.file("gradle/targets.gradle")
+
+repositories {
+    maven { url 'https://dl.bintray.com/kotlin/kotlinx' }
+    maven { setUrl("https://dl.bintray.com/hotkeytlt/maven") }
+    maven { url = uri("https://dl.bintray.com/47deg/helios") }
+}
+
+kotlin {
+    sourceSets {
+        commonMain {
+            dependencies {
+                implementation project(":core")
+                implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
+                implementation "org.jetbrains.kotlinx:kotlinx.benchmark.runtime:$kotlin_benchmark_version"
+                implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlin_serialization_version"
+                implementation "com.github.h0tk3y.betterParse:better-parse:$better_parse_version"
+            }
+        }
+        jvmMain {
+            dependencies {
+                implementation "com.47deg:helios-core:$helios_version"
+                implementation "com.47deg:helios-parser:$helios_version"
+            }
+        }
+    }
+}
+
+benchmark {
+    targets {
+        register("jvm")
+        // register("js")
+    }
+}

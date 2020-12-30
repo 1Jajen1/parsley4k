@@ -3,6 +3,7 @@ package parsley.internal.backend
 import parsley.ErrorItem
 import parsley.ParseError
 import parsley.internal.backend.util.ArrayStack
+import parsley.internal.backend.util.IntStack
 import parsley.internal.backend.util.Stack
 import parsley.longestMatch
 
@@ -12,7 +13,7 @@ internal abstract class StackMachine<I, E>(val instructions: List<Instruction<I,
     var programCounter = 0
 
     val dataStack: Stack<Any?> = ArrayStack()
-    val returnStack: Stack<Int> = ArrayStack()
+    val returnStack: IntStack = IntStack()
     val handlerStack: Stack<Handler<I, E>> = ArrayStack()
     var lastError: ParseError<I, E>? = null
 

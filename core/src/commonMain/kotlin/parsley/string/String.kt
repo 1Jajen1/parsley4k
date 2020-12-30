@@ -9,19 +9,15 @@ import parsley.combinators.pure
 import parsley.single
 import kotlin.math.max
 
-fun char(c: Char): Parser<Char, Nothing, Char> = Parser.single(c)
+fun Parser.Companion.char(c: Char): Parser<Char, Nothing, Char> = Parser.single(c)
 
-fun string(str: String): Parser<Char, Nothing, String> =
+fun Parser.Companion.string(str: String): Parser<Char, Nothing, String> =
     str.reversed().fold(Parser.pure("") as Parser<Char, Nothing, String>) { acc, c ->
         char(c).followedBy(acc)
     }.followedBy(Parser.pure(str))
 
 // TODO Some parts of error printing should be moved to generic
 // Showing errors produced by Char parsers
-// Errors
-fun Char.toTokens(): ErrorItem<Char> = ErrorItem.Tokens(this, emptyList())
-fun String.toTokens(): ErrorItem<Char> = ErrorItem.Tokens(first(), drop(1).toList())
-
 // Render errors
 internal fun ErrorItem<Char>.show(): String = when (this) {
     is ErrorItem.Tokens -> {
@@ -90,14 +86,14 @@ fun <E: ShowErrorComponent> ParseError<Char, E>.showPretty(
             max(acc, l)
         }
     }
-
+    // TODO reenable char pretty printing
     val line = input
         .drop(lastLineOff)
         .take(offset + 1 - lastLineOff)
-        .joinToString("") { prettyChar(it)?.let { "<$it>" } ?: "$it" } +
+        .joinToString("") /* { prettyChar(it)?.let { "<$it>" } ?: "$it" } */ +
             input.drop(offset + 1)
                 .takeWhile { it != '\n' }
-                .joinToString("") { prettyChar(it)?.let { "<$it>" } ?: "$it" }
+                .joinToString("") /* { prettyChar(it)?.let { "<$it>" } ?: "$it" } */
 
     fun StringBuilder.repeat(n: Int, c: Char): StringBuilder =
         if (n == 0) this

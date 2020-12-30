@@ -8,7 +8,8 @@ import parsley.internal.backend.toProgram
 import parsley.internal.frontend.findLetBound
 import parsley.internal.frontend.insertLets
 
-class CompiledStringParser<E, A> internal constructor(override val machine: StringStackMachine<E>) : CompiledParser<Char, CharArray, E, A>() {
+class CompiledStringParser<E, A> internal constructor(override val machine: StringStackMachine<E>) :
+    CompiledParser<Char, CharArray, E, A>() {
     override fun reset() {
         machine.input = charArrayOf()
         super.reset()
@@ -28,5 +29,5 @@ class CompiledStringParser<E, A> internal constructor(override val machine: Stri
 fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
     val (bound, recs) = findLetBound()
     val prog = insertLets(bound, recs).toProgram()
-    return CompiledStringParser(StringStackMachine(prog.toFinalProgram().also(::println)))
+    return CompiledStringParser(StringStackMachine(prog.toFinalProgram()))
 }

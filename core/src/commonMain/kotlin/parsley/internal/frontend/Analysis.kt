@@ -2,10 +2,14 @@ package parsley.internal.frontend
 
 import arrow.Const
 import arrow.ConstOf
+import arrow.Either
 import arrow.value
 import parsley.Parser
 import parsley.ParserOf
+import parsley.attempt
 import parsley.fix
+import parsley.lookAhead
+import parsley.negLookAhead
 
 fun <I, E, A> Parser<I, E, A>.show(): String = cata<I, E, A, ConstOf<String>> {
     when (it) {
@@ -17,7 +21,7 @@ fun <I, E, A> Parser<I, E, A>.show(): String = cata<I, E, A, ConstOf<String>> {
         is ParserF.Alt -> "${it.left.value()} <|> ${it.right.value()}"
         is ParserF.Empty -> "Empty"
         is ParserF.Satisfy<*> -> "Match(${it.expected})"
-        is ParserF.Single<*> -> "Single(${it.i}, ${it.expected})"
+        is ParserF.Single<*> -> "Single(${it.i})"
         is ParserF.LookAhead -> "LookAhead(${it.p.value()})"
         is ParserF.NegLookAhead -> "NegLookAhead(${it.p.value()})"
         is ParserF.Attempt -> "Attempt(${it.p.value()})"
@@ -72,14 +76,15 @@ internal fun <I, E, A> Parser<I, E, A>.findLetBound(): Pair<Set<Parser<I, E, Any
                     callRecursive(nS to pF.p.fix())
                 }
                 is ParserF.Lazy -> {
-                    callRecursive(nS to pF.f().fix())
+                    callRecursive(nS to pF.f.invoke().fix())
                 }
             }
         }
     }(emptySet<Parser<I, E, Any?>>() to this)
-    return refCount.filter { (_, v) -> v > 1 }.keys to recursives
+    return Pair(refCount.filter { (_, v) -> v > 1 }.keys, recursives)
 }
 
+@OptIn(ExperimentalStdlibApi::class)
 internal fun <I, E, A> Parser<I, E, A>.insertLets(
     letBound: Set<Parser<I, E, Any?>>,
     recursive: Set<Parser<I, E, Any?>>
@@ -88,22 +93,69 @@ internal fun <I, E, A> Parser<I, E, A>.insertLets(
     val subParsers = mutableMapOf<Int, Parser<I, E, Any?>>()
     val handled = mutableMapOf<Parser<I, E, Any?>, Int>()
 
-    val nP = cata<I, E, A, ParserOf<I, E>> { p ->
-        val p = Parser(if (p is ParserF.Lazy) p.f().fix().parserF else p)
+    val nP = DeepRecursiveFunction<Parser<I, E, Any?>, Parser<I, E, Any?>> { p ->
         val bound = letBound.contains(p)
         val rec = recursive.contains(p)
 
-        return@cata if (bound) {
-            val newLabel = if (handled.containsKey(p))
-                handled[p]!!
-            else
-                labelC++.also {
-                    subParsers[it] = p
-                    handled[p] = it
+        suspend fun DeepRecursiveScope<Parser<I, E, Any?>, Parser<I, E, Any?>>.new(): Parser<I, E, Any?> =
+            when (val pF = p.parserF) {
+                is ParserF.Ap<ParserOf<I, E>, *, *> -> {
+                    val l = callRecursive(pF.pF.fix())
+                    val r = callRecursive(pF.pA.fix())
+                    ParserF.Ap(l as Parser<I, E, (Any?) -> Any?>, r)
                 }
-            Parser(ParserF.Let(rec, newLabel))
-        } else p
-    }.fix()
+                is ParserF.ApL<ParserOf<I, E>, *, *> -> {
+                    val l = callRecursive(pF.pA.fix())
+                    val r = callRecursive(pF.pB.fix())
+                    ParserF.ApL(l, r)
+                }
+                is ParserF.ApR<ParserOf<I, E>, *, *> -> {
+                    val l = callRecursive(pF.pA.fix())
+                    val r = callRecursive(pF.pB.fix())
+                    ParserF.ApR(l, r)
+                }
+                is ParserF.Alt -> {
+                    val l = callRecursive(pF.left.fix())
+                    val r = callRecursive(pF.right.fix())
+                    ParserF.Alt(l, r)
+                }
+                is ParserF.Select<ParserOf<I, E>, *, *> -> {
+                    val e = callRecursive(pF.pEither.fix())
+                    val l = callRecursive(pF.pIfLeft.fix())
+                    ParserF.Select(
+                        e as Parser<I, E, Either<Any?, Any?>>,
+                        l as Parser<I, E, (Any?) -> Any?>
+                    )
+                }
+                is ParserF.LookAhead -> {
+                    ParserF.LookAhead(callRecursive(pF.p.fix()))
+                }
+                is ParserF.NegLookAhead -> {
+                    ParserF.NegLookAhead(callRecursive(pF.p.fix()))
+                }
+                is ParserF.Attempt -> {
+                    ParserF.Attempt(callRecursive(pF.p.fix()))
+                }
+                is ParserF.Lazy -> {
+                    if (handled.containsKey(p).not())
+                        callRecursive(pF.f.invoke().fix()).parserF
+                    else pF
+                }
+                else -> pF
+            }.let(::Parser)
 
-    return Triple(nP, subParsers, labelC)
+        if (bound) {
+            val newLabel =
+                if (handled.containsKey(p)) handled[p]!!
+                else {
+                    labelC++.also {
+                        handled[p] = it
+                        subParsers[it] = new()
+                    }
+                }
+            return@DeepRecursiveFunction Parser(ParserF.Let(rec, newLabel))
+        } else new()
+    }(this)
+
+    return Triple(nP as Parser<I, E, A>, subParsers, labelC)
 }

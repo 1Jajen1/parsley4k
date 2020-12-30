@@ -6,7 +6,6 @@ import parsley.internal.backend.StackMachine
 internal class StringStackMachine<E>(
     instr: List<Instruction<Char, E>>
 ) : StackMachine<Char, E>(instr) {
-
     internal var input: CharArray = charArrayOf()
 
     override fun consume() {

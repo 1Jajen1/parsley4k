@@ -9,9 +9,10 @@ import parsley.fix
 
 internal class ForParserF private constructor()
 internal typealias ParserFOf<I, E, F> = Kind<Kind<Kind<ForParserF, I>, E>, F>
+
 internal fun <I, E, F, A> Kind<ParserFOf<I, E, F>, A>.fix(): ParserF<I, E, F, A> = this as ParserF<I, E, F, A>
 
-internal sealed class ParserF<out I, out E, out F, out A>: Kind<ParserFOf<I, E, F>, A> {
+internal sealed class ParserF<out I, out E, out F, out A> : Kind<ParserFOf<I, E, F>, A> {
     // Applicative hierarchy
     data class Pure<out A>(val a: A) : ParserF<Nothing, Nothing, Nothing, A>()
 
@@ -22,15 +23,18 @@ internal sealed class ParserF<out I, out E, out F, out A>: Kind<ParserFOf<I, E, 
     data class ApR<out F, out A, out B>(val pA: Kind<F, A>, val pB: Kind<F, B>) : ParserF<Nothing, Nothing, F, B>()
 
     // Selective
-    data class Select<out F, A, out B>(val pEither: Kind<F, Either<A, B>>, val pIfLeft: Kind<F, (A) -> B>) : ParserF<Nothing, Nothing, F, B>()
+    data class Select<out F, A, out B>(val pEither: Kind<F, Either<A, B>>, val pIfLeft: Kind<F, (A) -> B>) :
+        ParserF<Nothing, Nothing, F, B>()
 
     // Matchers
-    data class Satisfy<I>(val match: (I) -> Boolean, val expected: Set<ErrorItem<I>> = setOf()) : ParserF<I, Nothing, Nothing, I>()
+    data class Satisfy<I>(val match: (I) -> Boolean, val expected: Set<ErrorItem<I>> = setOf()) :
+        ParserF<I, Nothing, Nothing, I>()
 
-    data class Single<I>(val i: I, val expected: Set<ErrorItem<I>> = setOf(ErrorItem.Tokens(i))) : ParserF<I, Nothing, Nothing, I>()
+    data class Single<I>(val i: I) : ParserF<I, Nothing, Nothing, I>()
 
     // Alternative
-    class Empty<out I, out E>(val error: ParseError<I, E> = ParseError.Trivial(offset = -1)) : ParserF<I, E, Nothing, Nothing>()
+    class Empty<out I, out E>(val error: ParseError<I, E> = ParseError.Trivial(offset = -1)) :
+        ParserF<I, E, Nothing, Nothing>()
 
     data class Alt<out F, out A>(val left: Kind<F, A>, val right: Kind<F, A>) : ParserF<Nothing, Nothing, F, A>()
 
@@ -43,7 +47,7 @@ internal sealed class ParserF<out I, out E, out F, out A>: Kind<ParserFOf<I, E, 
     data class Attempt<out F, out A>(val p: Kind<F, A>) : ParserF<Nothing, Nothing, F, A>()
 
     // Recursion
-    data class Lazy<out F, out A>(val f: () -> Kind<F, A>) : ParserF<Nothing, Nothing, F, A>()
+    class Lazy<out F, out A>(val f: () -> Kind<F, A>) : ParserF<Nothing, Nothing, F, A>()
 
     data class Let(val recursive: Boolean, val sub: Int) : ParserF<Nothing, Nothing, Nothing, Nothing>()
 }
@@ -69,10 +73,13 @@ internal inline fun <I, E, F, G, A> ParserF<I, E, F, A>.imap(trans: (Kind<F, Any
         is ParserF.Attempt -> ParserF.Attempt(trans(p) as Kind<G, A>)
         is ParserF.LookAhead -> ParserF.LookAhead(trans(p) as Kind<G, A>)
         is ParserF.NegLookAhead -> ParserF.NegLookAhead(trans(p)) as ParserF<I, E, G, A>
-        is ParserF.Satisfy<*> -> ParserF.Satisfy(match as (I) -> Boolean, expected as Set<ErrorItem<I>>) as ParserF<I, E, G, A>
-        is ParserF.Single<*> -> ParserF.Single(i as I,  expected as Set<ErrorItem<I>>) as ParserF<I, E, G, A>
+        is ParserF.Satisfy<*> -> ParserF.Satisfy(
+            match as (I) -> Boolean,
+            expected as Set<ErrorItem<I>>
+        ) as ParserF<I, E, G, A>
+        is ParserF.Single<*> -> ParserF.Single(i as I) as ParserF<I, E, G, A>
         is ParserF.Let -> ParserF.Let(recursive, sub)
-        is ParserF.Lazy -> TODO("no please don't call cata on lazy parsers, evaluate and place let bindings first ")
+        is ParserF.Lazy -> TODO("Pls not")
     }
 
 internal typealias Algebra<I, E, G, A> = (ParserF<I, E, G, A>) -> Kind<G, A>

@@ -12,7 +12,14 @@ import parsley.longestMatch
 
 internal class JumpOnFail<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: StackMachine<I, E>) {
-        machine.handlerStack.push(JumpOnFailHandler(machine.inputOffset, machine.dataStack.size(), to))
+        machine.handlerStack.push(
+            JumpOnFailHandler(
+                machine.inputOffset,
+                machine.dataStack.size(),
+                machine.returnStack.size(),
+                to
+            )
+        )
     }
 
     override fun toString(): String = "JumpOnFail($to)"
@@ -21,13 +28,15 @@ internal class JumpOnFail<I, E>(override var to: Int) : Instruction<I, E>, Jumps
 internal class JumpOnFailHandler<I, E>(
     val offset: Int,
     val stackOffset: Int,
+    val retStackOffset: Int,
     val to: Int
 ) : Handler<I, E> {
     override fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>) {
         if (machine.inputOffset != offset) {
             return machine.failWith(error)
         }
-        while (stackOffset > machine.dataStack.size()) machine.dataStack.pop()
+        while (stackOffset < machine.dataStack.size()) machine.dataStack.pop()
+        while (retStackOffset < machine.returnStack.size()) machine.returnStack.pop()
         machine.lastError = if (machine.lastError != null) machine.lastError!!.longestMatch(error) else error
         machine.jump(to)
     }
@@ -58,7 +67,11 @@ internal class ResetOffsetHandler<I, E>(val offset: Int) : Handler<I, E> {
 
 internal class PopHandler<I, E> : Instruction<I, E> {
     override fun apply(machine: StackMachine<I, E>) {
-        machine.handlerStack.pop().onRemove(machine)
+        try {
+            machine.handlerStack.pop().onRemove(machine)
+        } catch (e: Throwable) {
+            println("")
+        }
     }
 
     override fun toString(): String = "PopHandler"
@@ -93,6 +106,7 @@ internal class JumpOnFailAndFailOnSuccess<I, E>(override var to: Int) : Instruct
             JumpOnFailAndFailOnSuccessHandler(
                 machine.inputOffset,
                 machine.dataStack.size(),
+                machine.returnStack.size() + 1,
                 to
             )
         )
@@ -104,10 +118,12 @@ internal class JumpOnFailAndFailOnSuccess<I, E>(override var to: Int) : Instruct
 internal class JumpOnFailAndFailOnSuccessHandler<I, E>(
     val offset: Int,
     val stackOffset: Int,
+    val retStackOffset: Int,
     val to: Int
 ) : Handler<I, E> {
     override fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>) {
-        while (stackOffset > machine.dataStack.size()) machine.dataStack.pop()
+        while (stackOffset < machine.dataStack.size()) machine.dataStack.pop()
+        while (retStackOffset < machine.returnStack.size()) machine.returnStack.pop()
         machine.inputOffset = offset
         machine.jump(to)
     }
@@ -122,7 +138,10 @@ internal class JumpOnFailAndFailOnSuccessHandler<I, E>(
 internal class JumpOnRight<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: StackMachine<I, E>) {
         val top = machine.dataStack.pop() as Either<Any?, Any?>
-        top.fold({}, {
+        top.fold({
+            machine.dataStack.push(it)
+        }, {
+            machine.dataStack.push(it)
             machine.jump(to)
         })
     }

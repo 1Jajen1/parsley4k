@@ -1,0 +1,11 @@
+apply from: rootProject.file("gradle/targets.gradle")
+
+kotlin {
+    sourceSets {
+        all {
+            dependencies {
+                implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
+            }
+        }
+    }
+}

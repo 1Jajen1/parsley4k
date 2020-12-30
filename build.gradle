@@ -1,70 +1,30 @@
 buildscript {
     ext.arrow_version = "0.11.0"
-}
+    ext.kotlin_version = "1.4.21"
+    ext.kotlin_benchmark_version = "0.2.0-dev-20"
+    ext.kotlin_serialization_version = "1.0.1"
+    ext.better_parse_version = "0.4.0"
+    ext.helios_version = "0.2.0"
 
-plugins {
-    id 'java'
-    id 'org.jetbrains.kotlin.multiplatform' version '1.4.21'
-}
-
-group 'org.example'
-version '1.0-SNAPSHOT'
-
-repositories {
-    mavenCentral()
-}
-
-dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib"
-}
-
-kotlin {
-    jvm {}
-    js {
-        nodejs {}
-        browser {
-            webpackTask {
-                cssSupport.enabled = true
-            }
-
-            runTask {
-                cssSupport.enabled = true
-            }
-
-            testTask {
-                useKarma {
-                    useChromeHeadless()
-                    webpackConfig.cssSupport.enabled = true
-                }
-            }
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
         }
-        binaries.executable()
+        maven { url 'https://dl.bintray.com/kotlin/kotlinx' }
     }
-    /* Targets configuration omitted. 
-    *  To find out how to configure the targets, please follow the link:
-    *  https://kotlinlang.org/docs/reference/building-mpp-with-gradle.html#setting-up-targets */
-
-    sourceSets {
-        commonMain {
-            dependencies {
-                implementation kotlin('stdlib-common')
-                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2"
-            }
-        }
-        jvmMain {
-            dependencies {
-                // implementation "io.arrow-kt:arrow-core:$arrow_version"
-            }
-        }
-        commonTest {
-            dependencies {
-                implementation kotlin('test-common')
-                implementation kotlin('test-annotations-common')
-            }
-        }
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.kotlinx:kotlinx.benchmark.gradle:$kotlin_benchmark_version"
     }
 }
 
-test {
-    useJUnitPlatform()
+subprojects {
+    group = "hello"
+    version = "world"
+
+    repositories {
+        mavenCentral()
+    }
+
+    apply plugin: 'kotlin-multiplatform'
 }

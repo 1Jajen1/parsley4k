@@ -93,7 +93,7 @@ internal class DefaultCodeGen<I, E> : CodeGenFunc<I, E> {
                 listOf(Satisfy(p.match as (I) -> Boolean, p.expected as Set<ErrorItem<I>>))
             }
             is ParserF.Single<*> -> {
-                listOf(Satisfy({ it == p.i }, p.expected as Set<ErrorItem<I>>))
+                listOf(Satisfy({ it == p.i }, setOf(ErrorItem.Tokens(p.i)) as Set<ErrorItem<I>>))
             }
             is ParserF.LookAhead -> {
                 listOf(Tell<I, E>()) + p.p.value() + Flip() + Seek()
@@ -106,7 +106,7 @@ internal class DefaultCodeGen<I, E> : CodeGenFunc<I, E> {
             }
             is ParserF.Select<CodeGen<I, E>, *, *> -> {
                 val rightLabel = context.mkLabel()
-                p.pEither.value() + JumpOnRight(rightLabel) + p.pIfLeft.value() + Flip() + Apply() + Label(rightLabel) + PopHandler()
+                p.pEither.value() + JumpOnRight(rightLabel) + p.pIfLeft.value() + Flip() + Apply() + Label(rightLabel)
             }
             is ParserF.Lazy -> throw IllegalStateException("Lazy should not be present at code gen state")
         }

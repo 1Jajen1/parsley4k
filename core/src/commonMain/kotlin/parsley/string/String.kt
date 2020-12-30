@@ -52,7 +52,7 @@ fun <E: ShowErrorComponent> ParseError<Char, E>.showPretty(
     var curr = 0
     var lastLineOff = 0
     for (c in input) {
-        if (curr == offset) break
+        if (curr == getErrorOffset()) break
         when (c) {
             '\n' -> {
                 lineNr++
@@ -89,9 +89,9 @@ fun <E: ShowErrorComponent> ParseError<Char, E>.showPretty(
     // TODO reenable char pretty printing
     val line = input
         .drop(lastLineOff)
-        .take(offset + 1 - lastLineOff)
+        .take(getErrorOffset() + 1 - lastLineOff)
         .joinToString("") /* { prettyChar(it)?.let { "<$it>" } ?: "$it" } */ +
-            input.drop(offset + 1)
+            input.drop(getErrorOffset() + 1)
                 .takeWhile { it != '\n' }
                 .joinToString("") /* { prettyChar(it)?.let { "<$it>" } ?: "$it" } */
 

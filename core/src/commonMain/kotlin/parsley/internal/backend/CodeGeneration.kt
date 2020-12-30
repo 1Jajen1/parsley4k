@@ -35,10 +35,12 @@ import parsley.internal.frontend.fix
 internal typealias CodeGen<I, E> = ConstOf<List<Instruction<I, E>>>
 
 // TODO Use a better class to represent this triple
-internal fun <I, E, A> Triple<Parser<I, E, A>, Map<Int, Parser<I, E, A>>, Int>.toProgram(): Program<I, E> {
+internal fun <I, E, A> Triple<Parser<I, E, A>, Map<Int, Parser<I, E, A>>, Int>.toProgram(
+    vararg funcs: CodeGenFunc<I, E>
+): Program<I, E> {
     val (mainP, subP, highest) = this
     val ctx = CodeGenContext(highest)
-    return Program(mainP.codeGen(ctx), subP.mapValues { (_, p) -> p.codeGen(ctx) })
+    return Program(mainP.codeGen(ctx, *funcs), subP.mapValues { (_, p) -> p.codeGen(ctx, *funcs) })
 }
 
 internal fun <I, E, A> Parser<I, E, A>.codeGen(

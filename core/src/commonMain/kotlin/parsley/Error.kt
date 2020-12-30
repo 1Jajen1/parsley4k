@@ -1,22 +1,30 @@
 package parsley
 
 sealed class ParseError<out I, out E> {
-    abstract var offset: Int
+    fun getErrorOffset(): Int = when (this) {
+        is Trivial -> offset
+        is Fancy -> offset
+    }
+
+    fun setErrorOffset(o: Int): ParseError<I, E> = when (this) {
+        is Trivial -> copy(offset = o)
+        is Fancy -> copy(offset = o)
+    }
 
     data class Trivial<out I>(
         val unexpected: ErrorItem<I>? = null,
         val expected: Set<ErrorItem<I>> = setOf(),
-        override var offset: Int
+        val offset: Int
     ): ParseError<I, Nothing>()
     data class Fancy<out I, out E>(
         val errors: Set<FancyError<E>>,
-        override var offset: Int
+        val offset: Int
     ): ParseError<I, E>()
 }
 
 fun <I, E> ParseError<I, E>.longestMatch(other: ParseError<I, E>): ParseError<I, E> = when {
-    offset > other.offset -> this
-    offset < other.offset -> other
+    getErrorOffset() > other.getErrorOffset() -> this
+    getErrorOffset() < other.getErrorOffset() -> other
     this is ParseError.Trivial && other is ParseError.Trivial -> {
         ParseError.Trivial(
             unexpected = unexpected ?: other.unexpected,

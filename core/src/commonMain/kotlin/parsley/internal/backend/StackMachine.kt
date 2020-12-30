@@ -7,7 +7,7 @@ import parsley.internal.backend.util.IntStack
 import parsley.internal.backend.util.Stack
 import parsley.longestMatch
 
-internal abstract class StackMachine<I, E>(val instructions: List<Instruction<I, E>>) {
+internal abstract class StackMachine<I, E>(val instructions: Array<Instruction<I, E>>) {
     var status: ParseStatus<I, E> = ParseStatus.Ok
     var inputOffset = 0
     var programCounter = 0

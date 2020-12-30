@@ -8,7 +8,6 @@ import parsley.internal.backend.Handler
 import parsley.internal.backend.Instruction
 import parsley.internal.backend.Jumps
 import parsley.internal.backend.StackMachine
-import parsley.longestMatch
 
 internal class JumpOnFail<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: StackMachine<I, E>) {
@@ -37,7 +36,6 @@ internal class JumpOnFailHandler<I, E>(
         }
         while (stackOffset < machine.dataStack.size()) machine.dataStack.pop()
         while (retStackOffset < machine.returnStack.size()) machine.returnStack.pop()
-        machine.lastError = if (machine.lastError != null) machine.lastError!!.longestMatch(error) else error
         machine.jump(to)
     }
 }
@@ -93,7 +91,6 @@ internal class Jump<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
 
 internal class Fail<I, E>(override var error: ParseError<I, E>) : Instruction<I, E>, CanFail<I, E> {
     override fun apply(machine: StackMachine<I, E>) {
-        error.offset = machine.inputOffset
         machine.failWith(error)
     }
 
@@ -131,7 +128,7 @@ internal class JumpOnFailAndFailOnSuccessHandler<I, E>(
     override fun onRemove(machine: StackMachine<I, E>) {
         machine.inputOffset = offset
         val fst = if (machine.hasMore()) ErrorItem.Tokens(machine.take()) else ErrorItem.EndOfInput
-        machine.failWith(ParseError.Trivial(unexpected = fst, offset = machine.inputOffset))
+        machine.failWith(ParseError.Trivial(unexpected = fst, offset = offset))
     }
 }
 

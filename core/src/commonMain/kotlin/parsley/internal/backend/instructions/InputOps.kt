@@ -19,10 +19,6 @@ internal class Satisfy<I, E>(
                 machine.consume()
                 machine.dataStack.push(i)
             } else {
-                // TODO Helpers for this...
-                if (error is ParseError.Trivial)
-                    error = (error as ParseError.Trivial<I>).copy(unexpected = ErrorItem.Tokens(i))
-                error.offset = machine.inputOffset
                 machine.failWith(error)
             }
         } else {
@@ -32,31 +28,6 @@ internal class Satisfy<I, E>(
     }
 
     override fun toString(): String = "Satisfy"
-}
-
-internal class Satisfy_<I, E>(
-    val f: (I) -> Boolean,
-    expected: Set<ErrorItem<I>>
-) : Instruction<I, E>, CanFail<I, E> {
-    override var error: ParseError<I, E> = ParseError.Trivial(expected = expected, offset = -1)
-    override fun apply(machine: StackMachine<I, E>) {
-        if (machine.hasMore()) {
-            val i = machine.take()
-            if (f(i)) {
-                machine.consume()
-            } else {
-                if (error is ParseError.Trivial)
-                    error = (error as ParseError.Trivial<I>).copy(unexpected = ErrorItem.Tokens(i))
-                error.offset = machine.inputOffset
-                machine.failWith(error)
-            }
-        } else {
-            val expected = if (error is ParseError.Trivial) (error as ParseError.Trivial<I>).expected else emptySet()
-            machine.status = ParseStatus.NeedInput(expected)
-        }
-    }
-
-    override fun toString(): String = "Satisfy_"
 }
 
 internal class Tell<I, E> : Instruction<I, E> {

@@ -4,7 +4,7 @@ import parsley.internal.backend.ParseStatus
 import parsley.internal.backend.StackMachine
 
 // TODO add suspend based streaming version
-abstract class CompiledParser<I, IArr, E, A> internal constructor(){
+abstract class CompiledParser<I, IArr, E, A> internal constructor() {
     internal abstract val machine: StackMachine<I, E>
     internal abstract fun setInput(arr: IArr): Unit
     internal abstract fun getRemaining(): IArr
@@ -27,7 +27,11 @@ abstract class CompiledParser<I, IArr, E, A> internal constructor(){
             when (val stat = machine.status) {
                 is ParseStatus.Ok -> return ParseResult.Success(machine.dataStack.pop() as A, getRemaining())
                 is ParseStatus.NeedInput -> machine.failWith(
-                    ParseError.Trivial(unexpected = ErrorItem.EndOfInput, expected = stat.expected, offset = machine.inputOffset)
+                    ParseError.Trivial(
+                        unexpected = ErrorItem.EndOfInput,
+                        expected = stat.expected,
+                        offset = machine.inputOffset
+                    )
                 )
                 is ParseStatus.Failed -> return ParseResult.Error(stat.error, getRemaining())
             }

@@ -31,7 +31,7 @@ internal sealed class IList<out A> {
         var curr = this
         while (curr !== Nil) {
             val cons = curr as Cons
-            mutList.add(cons.a)
+            mutList.add(0, cons.a)
             curr = cons.tail
         }
         return mutList

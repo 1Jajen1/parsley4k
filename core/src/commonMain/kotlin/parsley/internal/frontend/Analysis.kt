@@ -27,6 +27,7 @@ fun <I, E, A> Parser<I, E, A>.show(): String = cata<I, E, A, ConstOf<String>> {
         is ParserF.Attempt -> "Attempt(${it.p.value()})"
         is ParserF.Let -> "Let(${it.recursive}, ${it.sub})"
         is ParserF.Lazy -> "Lazy(...)"
+        is ParserF.Many<ConstOf<String>, *> -> "Many(${it.p.value()})"
     }.let(::Const)
 }.value()
 
@@ -77,6 +78,9 @@ internal fun <I, E, A> Parser<I, E, A>.findLetBound(): Pair<Set<Parser<I, E, Any
                 }
                 is ParserF.Lazy -> {
                     callRecursive(nS to pF.f.invoke().fix())
+                }
+                is ParserF.Many<ParserOf<I, E>, *> -> {
+                    callRecursive(nS to pF.p.fix())
                 }
             }
         }
@@ -140,6 +144,9 @@ internal fun <I, E, A> Parser<I, E, A>.insertLets(
                     if (handled.containsKey(p).not())
                         callRecursive(pF.f.invoke().fix()).parserF
                     else pF
+                }
+                is ParserF.Many<ParserOf<I, E>, *> -> {
+                    ParserF.Many(callRecursive(pF.p.fix()))
                 }
                 else -> pF
             }.let(::Parser)

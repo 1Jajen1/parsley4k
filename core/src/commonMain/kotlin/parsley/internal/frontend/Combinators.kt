@@ -50,6 +50,9 @@ internal sealed class ParserF<out I, out E, out F, out A> : Kind<ParserFOf<I, E,
     class Lazy<out F, out A>(val f: () -> Kind<F, A>) : ParserF<Nothing, Nothing, F, A>()
 
     data class Let(val recursive: Boolean, val sub: Int) : ParserF<Nothing, Nothing, Nothing, Nothing>()
+
+    // Intrinsics for better performance
+    data class Many<out F, out A>(val p: Kind<F, A>): ParserF<Nothing, Nothing, F, List<A>>()
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -79,6 +82,7 @@ internal inline fun <I, E, F, G, A> ParserF<I, E, F, A>.imap(trans: (Kind<F, Any
         ) as ParserF<I, E, G, A>
         is ParserF.Single<*> -> ParserF.Single(i as I) as ParserF<I, E, G, A>
         is ParserF.Let -> ParserF.Let(recursive, sub)
+        is ParserF.Many<F, *> -> ParserF.Many(trans(p)) as ParserF<I, E, G, A>
         is ParserF.Lazy -> TODO("Pls not")
     }
 

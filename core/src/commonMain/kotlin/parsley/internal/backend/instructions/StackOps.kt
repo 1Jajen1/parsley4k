@@ -47,3 +47,14 @@ internal class Apply<I, E> : Instruction<I, E>, Pops, Pushes {
 
     override fun toString(): String = "Apply"
 }
+
+internal class Map<I, E>(val f: (Any?) -> Any?) : Instruction<I, E>, Pops, Pushes {
+    override fun apply(machine: StackMachine<I, E>) {
+        val a = machine.dataStack.pop()
+        machine.dataStack.push(f(a))
+    }
+    override fun pops(): Int = 1
+    override fun pushes(): Int = 1
+
+    override fun toString(): String = "Map"
+}

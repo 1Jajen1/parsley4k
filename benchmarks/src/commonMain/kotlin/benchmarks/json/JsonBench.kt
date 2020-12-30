@@ -1,6 +1,5 @@
 package benchmarks.json
 
-import benchmarks.json.old.compiledJsonParserOldMany
 import kotlinx.benchmark.Benchmark
 import kotlinx.benchmark.Scope
 import kotlinx.benchmark.State
@@ -29,9 +28,9 @@ open class JsonBench {
         Json.parseToJsonElement(jsonSample1K)
     }
      */
-    
+
     @Benchmark
-    open fun jsonImprovedList() {
+    open fun jsonParsley() {
         compiledJsonParser.execute(jsonSample1K)
     }
 }

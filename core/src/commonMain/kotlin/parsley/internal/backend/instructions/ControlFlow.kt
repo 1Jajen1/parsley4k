@@ -164,3 +164,30 @@ internal class End<I, E> : Instruction<I, E> {
 
     override fun toString(): String = "End"
 }
+
+// Variant of JumpOnFail that always succeeds in the second branch
+internal class JumpOnFailPure<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
+    override fun apply(machine: StackMachine<I, E>) {
+        machine.handlerStack.push(
+            JumpOnFailPureHandler(
+                machine.dataStack.size(),
+                machine.returnStack.size(),
+                to
+            )
+        )
+    }
+
+    override fun toString(): String = "JumpOnFailPure($to)"
+}
+
+internal class JumpOnFailPureHandler<I, E>(
+    val stackOffset: Int,
+    val retStackOffset: Int,
+    val to: Int
+) : Handler<I, E> {
+    override fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>) {
+        while (stackOffset < machine.dataStack.size()) machine.dataStack.pop()
+        while (retStackOffset < machine.returnStack.size()) machine.returnStack.pop()
+        machine.jump(to)
+    }
+}

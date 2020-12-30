@@ -13,11 +13,14 @@ import parsley.internal.backend.instructions.End
 import parsley.internal.backend.instructions.Exit
 import parsley.internal.backend.instructions.Fail
 import parsley.internal.backend.instructions.Flip
+import parsley.internal.backend.instructions.IList
 import parsley.internal.backend.instructions.Jump
 import parsley.internal.backend.instructions.JumpOnFail
 import parsley.internal.backend.instructions.JumpOnFailAndFailOnSuccess
+import parsley.internal.backend.instructions.JumpOnFailPure
 import parsley.internal.backend.instructions.JumpOnRight
 import parsley.internal.backend.instructions.Label
+import parsley.internal.backend.instructions.Many
 import parsley.internal.backend.instructions.Pop
 import parsley.internal.backend.instructions.PopHandler
 import parsley.internal.backend.instructions.Push
@@ -107,6 +110,16 @@ internal class DefaultCodeGen<I, E> : CodeGenFunc<I, E> {
             is ParserF.Select<CodeGen<I, E>, *, *> -> {
                 val rightLabel = context.mkLabel()
                 p.pEither.value() + JumpOnRight(rightLabel) + p.pIfLeft.value() + Flip() + Apply() + Label(rightLabel)
+            }
+            is ParserF.Many<CodeGen<I, E>, *> -> {
+                val label = context.mkLabel()
+                val endLabel = context.mkLabel()
+                listOf(Push<I, E>(IList.Nil)) + Tell() + JumpOnFailPure(endLabel) +
+                        Label(label) + p.p.value() + Many(label) +
+                        Label(endLabel) + Seek() +
+                        parsley.internal.backend.instructions.Map {
+                            (it as IList<Any?>).toList()
+                        }
             }
             is ParserF.Lazy -> throw IllegalStateException("Lazy should not be present at code gen state")
         }

@@ -50,7 +50,7 @@ val jsonRootParser = Parser.run {
         if (d == null) str
         else "$str.$d"
     }.map { Json.JsonNumber(it.toDouble()) }
-    val unescapedChar = satisfy<Char>(setOf(ErrorItem.Label("Any non \\ and \""))) { c: Char -> c != '\\' && c != '"' }
+    val unescapedChar = satisfy(setOf(ErrorItem.Label("Any non \\ and \""))) { c: Char -> c != '\\' && c != '"' }
     val specialChar = choice(
         char('"').followedBy(pure("\"")),
         char('\\').followedBy(pure("\\")),

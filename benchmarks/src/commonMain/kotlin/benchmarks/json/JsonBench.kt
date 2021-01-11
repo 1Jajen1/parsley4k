@@ -11,6 +11,7 @@ import parsley.string.compile
 @State(Scope.Benchmark)
 open class JsonBench {
 
+    /*
     @Benchmark
     open fun jsonParsleyCold() {
         jsonRootParser.compile().execute(jsonSample1K)
@@ -30,7 +31,7 @@ open class JsonBench {
     open fun jsonKotlinxDeserializer() {
         Json.parseToJsonElement(jsonSample1K)
     }
-
+     */
     @Benchmark
     open fun jsonParsley() {
         compiledJsonParser.execute(jsonSample1K)

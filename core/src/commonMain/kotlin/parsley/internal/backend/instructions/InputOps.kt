@@ -36,9 +36,9 @@ internal class Satisfy<I, E>(
     override fun fuseWith(f: (Any?) -> Any?): Instruction<I, E> = SatisfyMap(this.f, f.unsafe(), expected)
 }
 
-internal class SatisfyDiscard<I, E>(
+internal class Satisfy_<I, E>(
     val f: Predicate<I>,
-    expected: Set<ErrorItem<I>>
+    val expected: Set<ErrorItem<I>>
 ) : Instruction<I, E>, CanFail<I, E>, Consumes {
     override fun apply(machine: StackMachine<I, E>) {
         if (machine.hasMore()) {
@@ -53,7 +53,7 @@ internal class SatisfyDiscard<I, E>(
         }
     }
 
-    override fun toString(): String = "SatisfyDiscard"
+    override fun toString(): String = "Satisfy_"
     override fun consumes(): Int = 1
 }
 

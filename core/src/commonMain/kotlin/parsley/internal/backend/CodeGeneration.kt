@@ -20,16 +20,14 @@ import parsley.internal.backend.instructions.PopHandler
 import parsley.internal.backend.instructions.Push
 import parsley.internal.backend.instructions.ResetOffset
 import parsley.internal.backend.instructions.Satisfy
-import parsley.internal.backend.instructions.SatisfyDiscard
+import parsley.internal.backend.instructions.Satisfy_
 import parsley.internal.backend.instructions.SatisfyMany
 import parsley.internal.backend.instructions.SatisfyManyAndMap
 import parsley.internal.backend.instructions.SatisfyMany_
 import parsley.internal.backend.instructions.Seek
 import parsley.internal.backend.instructions.Tell
 import parsley.internal.backend.optimise.toJumpTable
-import parsley.internal.backend.string.CharListToString
 import parsley.internal.frontend.ParserF
-import parsley.internal.frontend.Predicate
 import parsley.internal.unsafe
 
 // TODO Use a better class to represent this triple
@@ -206,14 +204,14 @@ internal class DefaultCodeGen<I, E> : CodeGenFunc<I, E> {
             }
             is ParserF.Satisfy<*> -> {
                 if (ctx.discard) {
-                    ctx += SatisfyDiscard(p.match.unsafe(), p.expected.unsafe())
+                    ctx += Satisfy_(p.match.unsafe(), p.expected.unsafe())
                 } else {
                     ctx += Satisfy(p.match.unsafe(), p.expected.unsafe())
                 }
             }
             is ParserF.Single<*> -> {
                 if (ctx.discard) {
-                    ctx += SatisfyDiscard({ it == p.i }, setOf(ErrorItem.Tokens(p.i.unsafe())))
+                    ctx += Satisfy_({ it == p.i }, setOf(ErrorItem.Tokens(p.i.unsafe())))
                 } else {
                     ctx += Satisfy({ it == p.i }, setOf(ErrorItem.Tokens(p.i.unsafe())))
                 }

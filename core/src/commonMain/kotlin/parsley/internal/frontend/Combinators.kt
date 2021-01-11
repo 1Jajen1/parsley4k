@@ -86,3 +86,7 @@ internal sealed class ParserF<out I, out E, out A> {
 fun interface Predicate<I> {
     operator fun invoke(i: I): Boolean
 }
+
+fun interface CharPredicate : Predicate<Char> {
+    override operator fun invoke(i: Char): Boolean
+}

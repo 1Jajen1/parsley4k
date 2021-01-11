@@ -8,7 +8,10 @@ import parsley.internal.backend.CodeGenFunc
 import parsley.internal.backend.Instruction
 import parsley.internal.backend.Method
 import parsley.internal.backend.Program
+import parsley.internal.backend.instructions.Satisfy
 import parsley.internal.backend.instructions.SatisfyMany
+import parsley.internal.backend.instructions.SatisfyMap
+import parsley.internal.backend.instructions.Satisfy_
 import parsley.internal.backend.optimise.inlinePass
 import parsley.internal.backend.optimise.optimise
 import parsley.internal.backend.string.CharListToString
@@ -26,6 +29,9 @@ import parsley.internal.backend.string.SingleChar
 import parsley.internal.backend.string.SingleChar_
 import parsley.internal.backend.string.MatchString
 import parsley.internal.backend.string.MatchString_
+import parsley.internal.backend.string.SatisfyChar
+import parsley.internal.backend.string.SatisfyCharMap
+import parsley.internal.backend.string.SatisfyChar_
 import parsley.internal.backend.string.SatisfyManyChars
 import parsley.internal.backend.string.StringStackMachine
 import parsley.internal.backend.string.StringToCharList
@@ -169,7 +175,7 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
             prog.postProcess()
                 .optimise(label)
                 .toFinalProgram()
-                // .also { it.mapIndexed { i, v -> i to v }.also(::println) }
+                .also { it.mapIndexed { i, v -> i to v }.also(::println) }
                 .toTypedArray()
         )
     )
@@ -177,9 +183,9 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
 
 internal fun <E> Program<Char, E>.postProcess(): Program<Char, E> {
     var (main, subs) = this
-    main = Method(main.instr.toMutableList().concatMatchChar())
+    main = Method(main.instr.toMutableList().performCharOptimizations())
 
-    subs = subs.mapValues { (_, s) -> Method(s.instr.toMutableList().concatMatchChar()) }
+    subs = subs.mapValues { (_, s) -> Method(s.instr.toMutableList().performCharOptimizations()) }
 
     inlinePass(main, subs).also { (m, s) ->
         main = m
@@ -188,16 +194,28 @@ internal fun <E> Program<Char, E>.postProcess(): Program<Char, E> {
     return Program(main, subs)
 }
 
-internal fun <E> MutableList<Instruction<Char, E>>.concatMatchChar(): MutableList<Instruction<Char, E>> {
+internal fun <E> MutableList<Instruction<Char, E>>.performCharOptimizations(): MutableList<Instruction<Char, E>> {
     var curr = 0
     while (curr < size - 1) {
         val el = get(curr++)
         val next = get(curr)
         when {
+            el is Satisfy -> {
+                removeAt(--curr)
+                add(curr, SatisfyChar(el.f.unsafe(), el.expected))
+            }
+            el is Satisfy_ -> {
+                removeAt(--curr)
+                add(curr, SatisfyChar_(el.f.unsafe(), el.expected))
+            }
+            el is SatisfyMap -> {
+                removeAt(--curr)
+                add(curr, SatisfyCharMap(el.f.unsafe(), el.fa, el.expected))
+            }
             el is SatisfyMany && next is CharListToString -> {
-                removeAt(curr--)
+                removeAt(--curr)
                 removeAt(curr)
-                add(curr, SatisfyManyChars(el.f))
+                add(curr, SatisfyManyChars(el.f.unsafe()))
             }
             el is StringToCharList && next is CharListToString -> {
                 removeAt(curr--)

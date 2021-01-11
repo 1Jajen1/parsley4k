@@ -5,10 +5,10 @@ import parsley.internal.backend.Instruction
 import parsley.internal.backend.ParseStatus
 import parsley.internal.backend.Pushes
 import parsley.internal.backend.StackMachine
-import parsley.internal.frontend.Predicate
+import parsley.internal.frontend.CharPredicate
 import parsley.internal.unsafe
 
-internal class SatisfyManyChars<E>(val f: Predicate<Char>) : Instruction<Char, E>, Pushes, FuseMap<Char, E> {
+internal class SatisfyManyChars<E>(val f: CharPredicate) : Instruction<Char, E>, Pushes, FuseMap<Char, E> {
     override fun apply(machine: StackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
         val start = machine.inputOffset
@@ -31,7 +31,7 @@ internal class SatisfyManyChars<E>(val f: Predicate<Char>) : Instruction<Char, E
     override fun fuseWith(f: (Any?) -> Any?): Instruction<Char, E> = SatisfyManyCharsAndMap(this.f, f.unsafe())
 }
 
-internal class SatisfyManyCharsAndMap<E>(val f: Predicate<Char>, val fa: (String) -> Any?) : Instruction<Char, E>,
+internal class SatisfyManyCharsAndMap<E>(val f: CharPredicate, val fa: (String) -> Any?) : Instruction<Char, E>,
     Pushes {
     override fun apply(machine: StackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()

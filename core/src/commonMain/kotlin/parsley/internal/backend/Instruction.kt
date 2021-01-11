@@ -1,13 +1,11 @@
 package parsley.internal.backend
 
-import parsley.ParseError
-
 internal interface Instruction<I, E> {
     fun apply(machine: StackMachine<I, E>): Unit
 }
 
 internal interface Handler<I, E> {
-    fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>): Unit
+    fun onFail(machine: StackMachine<I, E>): Unit
     fun onRemove(machine: StackMachine<I, E>): Unit = Unit
 }
 // Meta interfaces
@@ -24,9 +22,13 @@ internal interface Pops {
 }
 
 internal interface CanFail<I, E> {
-    var error: ParseError<I, E>
+
 }
 
 internal interface Jumps {
     var to: Int
+}
+
+internal interface FuseMap<I, E> {
+    fun fuseWith(f: (Any?) -> Any?): Instruction<I, E>
 }

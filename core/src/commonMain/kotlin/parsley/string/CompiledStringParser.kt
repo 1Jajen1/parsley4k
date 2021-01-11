@@ -1,24 +1,40 @@
 package parsley.string
 
 import parsley.CompiledParser
-import parsley.ErrorItem
-import parsley.ParseError
 import parsley.ParseResult
 import parsley.Parser
-import parsley.internal.backend.CanFail
-import parsley.internal.backend.CodeGen
 import parsley.internal.backend.CodeGenContext
 import parsley.internal.backend.CodeGenFunc
 import parsley.internal.backend.Instruction
-import parsley.internal.backend.Pushes
-import parsley.internal.backend.StackMachine
-import parsley.internal.backend.string.MatchChar
+import parsley.internal.backend.Method
+import parsley.internal.backend.Program
+import parsley.internal.backend.instructions.SatisfyMany
+import parsley.internal.backend.optimise.inlinePass
+import parsley.internal.backend.optimise.optimise
+import parsley.internal.backend.string.CharListToString
+import parsley.internal.backend.string.MatchCharIn
+import parsley.internal.backend.string.MatchCharIn_
+import parsley.internal.backend.string.MatchCharOf
+import parsley.internal.backend.string.MatchCharOf_
+import parsley.internal.backend.string.MatchManyChars
+import parsley.internal.backend.string.MatchManyCharsIn
+import parsley.internal.backend.string.MatchManyCharsIn_
+import parsley.internal.backend.string.MatchManyCharsOf
+import parsley.internal.backend.string.MatchManyCharsOf_
+import parsley.internal.backend.string.MatchManyChars_
+import parsley.internal.backend.string.SingleChar
+import parsley.internal.backend.string.SingleChar_
+import parsley.internal.backend.string.MatchString
+import parsley.internal.backend.string.MatchString_
+import parsley.internal.backend.string.SatisfyManyChars
 import parsley.internal.backend.string.StringStackMachine
+import parsley.internal.backend.string.StringToCharList
 import parsley.internal.backend.toProgram
 import parsley.internal.frontend.ParserF
 import parsley.internal.frontend.findLetBound
 import parsley.internal.frontend.insertLets
 import parsley.internal.frontend.optimise
+import parsley.internal.unsafe
 
 class CompiledStringParser<E, A> internal constructor(override val machine: StringStackMachine<E>) :
     CompiledParser<Char, CharArray, E, A>() {
@@ -38,11 +54,105 @@ class CompiledStringParser<E, A> internal constructor(override val machine: Stri
     fun execute(str: String): ParseResult<Char, CharArray, E, A> = execute(str.toCharArray())
 }
 
+@OptIn(ExperimentalStdlibApi::class)
+internal fun <E> ParserF<Char, E, Any?>.collectAlternatives(): Set<Char> {
+    val s = mutableSetOf<Char>()
+    var discard = false
+    DeepRecursiveFunction<ParserF<Char, E, Any?>, Unit> { parser ->
+        if (parser is ParserF.Alt) {
+            callRecursive(parser.left)
+            callRecursive(parser.right)
+        } else if (parser is ParserF.Single<*>) {
+            s.add(parser.i.unsafe())
+        } else {
+            discard = true
+        }
+    }(this)
+    return if (discard) emptySet()
+    else s
+}
+
 internal class StringCodeGen<E> : CodeGenFunc<Char, E> {
-    override fun <A> ParserF<Char, E, CodeGen<Char, E>, A>.apply(context: CodeGenContext): List<Instruction<Char, E>>? =
-        when (this) {
-            is ParserF.Single<*> -> listOf(MatchChar(this.i as Char))
-            else -> null
+    @OptIn(ExperimentalStdlibApi::class)
+    override suspend fun <A> DeepRecursiveScope<ParserF<Char, E, Any?>, Unit>.apply(
+        p: ParserF<Char, E, A>,
+        subs: Map<Int, Parser<Char, E, A>>,
+        ctx: CodeGenContext<Char, E>
+    ): Boolean =
+        when (p) {
+            is ParserF.ConcatString -> {
+                callRecursive(p.p)
+                ctx += CharListToString()
+                true
+            }
+            /* TODO Test
+            is ParserF.Satisfy<*> ->
+             */
+            is ParserF.Many<Char, E, Any?> -> {
+                val set = p.p.collectAlternatives()
+                when {
+                    set.isEmpty() -> false
+                    set.size == 1 -> {
+                        if (ctx.discard) {
+                            ctx += MatchManyChars_(set.first())
+                        } else {
+                            ctx += MatchManyChars(set.first())
+                            ctx += StringToCharList()
+                        }
+                        true
+                    }
+                    else -> {
+                        val arr = set.toCharArray()
+                        arr.sort()
+                        if (arr.last() - arr.first() == arr.size) {
+                            if (ctx.discard) {
+                                ctx += MatchManyCharsIn_(arr.first()..arr.last())
+                            } else {
+                                ctx += MatchManyCharsIn(arr.first()..arr.last())
+                                ctx += StringToCharList()
+                            }
+                        } else {
+                            if (ctx.discard) {
+                                ctx += MatchManyCharsOf_(arr)
+                            } else {
+                                ctx += MatchManyCharsOf(arr)
+                                ctx += StringToCharList()
+                            }
+                        }
+                        true
+                    }
+                }
+            }
+            is ParserF.Alt -> {
+                val set = p.collectAlternatives()
+                if (set.size > 1) {
+                    val arr = set.toCharArray()
+                    arr.sort()
+                    if (arr.last() - arr.first() == arr.size) {
+                        if (ctx.discard) {
+                            ctx += MatchCharIn_(arr.first()..arr.last())
+                        } else {
+                            ctx += MatchCharIn(arr.first()..arr.last())
+                        }
+                    } else {
+                        if (ctx.discard) {
+                            ctx += MatchCharOf_(set.toCharArray())
+                        } else {
+                            ctx += MatchCharOf(set.toCharArray())
+                        }
+                    }
+                    true
+                } else false
+            }
+            is ParserF.Single<*> -> {
+                if (ctx.discard) {
+                    ctx += SingleChar_(p.i.unsafe())
+                } else {
+                    ctx += SingleChar(p.i.unsafe())
+                }
+                true
+            }
+            else -> false
         }
 }
 
@@ -50,7 +160,74 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
     val (bound, recs) = findLetBound()
     val (mainP, subs, highestLabel) = insertLets(bound, recs)
 
-    val prog = Triple(mainP.optimise(), subs.mapValues { (_, v) -> v.optimise() }, highestLabel)
-        .toProgram(StringCodeGen())
-    return CompiledStringParser(StringStackMachine(prog.toFinalProgram().toTypedArray()))
+    val (prog, label) = Triple(mainP.optimise(), subs.mapValues { (_, v) ->
+        v.optimise()
+    }, highestLabel).toProgram(StringCodeGen())
+
+    return CompiledStringParser(
+        StringStackMachine(
+            prog.postProcess()
+                .optimise(label)
+                .toFinalProgram()
+                // .also { it.mapIndexed { i, v -> i to v }.also(::println) }
+                .toTypedArray()
+        )
+    )
+}
+
+internal fun <E> Program<Char, E>.postProcess(): Program<Char, E> {
+    var (main, subs) = this
+    main = Method(main.instr.toMutableList().concatMatchChar())
+
+    subs = subs.mapValues { (_, s) -> Method(s.instr.toMutableList().concatMatchChar()) }
+
+    inlinePass(main, subs).also { (m, s) ->
+        main = m
+        subs = s
+    }
+    return Program(main, subs)
+}
+
+internal fun <E> MutableList<Instruction<Char, E>>.concatMatchChar(): MutableList<Instruction<Char, E>> {
+    var curr = 0
+    while (curr < size - 1) {
+        val el = get(curr++)
+        val next = get(curr)
+        when {
+            el is SatisfyMany && next is CharListToString -> {
+                removeAt(curr--)
+                removeAt(curr)
+                add(curr, SatisfyManyChars(el.f))
+            }
+            el is StringToCharList && next is CharListToString -> {
+                removeAt(curr--)
+                removeAt(curr--)
+            }
+            el is SingleChar<E> && next is SingleChar<E> -> {
+                removeAt(curr--)
+                removeAt(curr)
+                add(curr, MatchString("${el.c}${next.c}"))
+            }
+            el is SingleChar_<E> && next is SingleChar_<E> -> {
+                removeAt(curr--)
+                removeAt(curr)
+                add(curr, MatchString_("${el.c}${next.c}"))
+            }
+            el is MatchString<E> && next is SingleChar<E> -> {
+                removeAt(curr--)
+                removeAt(curr)
+                add(curr, MatchString("${el.str}${next.c}"))
+            }
+            el is MatchString_<E> && next is SingleChar_<E> -> {
+                removeAt(curr--)
+                removeAt(curr)
+                add(curr, MatchString_("${el.str}${next.c}"))
+            }
+        }
+    }
+    return this
+}
+
+internal fun <E> MutableList<Instruction<Char, E>>.loopify(): MutableList<Instruction<Char, E>> {
+    TODO()
 }

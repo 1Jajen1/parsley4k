@@ -1,5 +1,3 @@
-package benchmarks.json
-
 import parsley.ErrorItem
 import parsley.Parser
 import parsley.attempt
@@ -13,24 +11,59 @@ import parsley.combinators.map
 import parsley.combinators.mapTo
 import parsley.combinators.orNull
 import parsley.combinators.pure
+import parsley.combinators.void
 import parsley.recursive
 import parsley.satisfy
 import parsley.string.char
 import parsley.string.compile
 import parsley.string.concatString
 import parsley.string.string
-import kotlin.jvm.JvmName
 
-sealed class Json {
-    object Null : Json()
-    data class JsonBool(val b: Boolean) : Json()
-    data class JsonNumber(val n: Double) : Json()
-    data class JsonString(val str: String) : Json()
-    data class JsonArray(val arr: List<Json>) : Json()
-    data class JsonObject(val map: Map<JsonString, Json>) : Json()
+fun main() {
+    ///*
+    compiledJsonParser.execute(jsonSample1K).fold({ _ ->
+        println("Err")
+        // println(err.showPretty(jsonSample1K))
+    }, { res, _ ->
+        println(res)
+    })
+    // while (true) {}
+    //*/
+    /*
+   // var i = 0
+   while (true) {
+       compiledJsonParser.execute(jsonSample1K)
+       // println(i++)
+   }
+    */
 }
 
-@JvmName("concatStringString")
+sealed class Json {
+    object JsonNull : Json() {
+        override fun toString(): String = "JsonNull"
+    }
+
+    data class JsonBool(val b: Boolean) : Json() {
+        override fun toString(): String = "JsonBool($b)"
+    }
+
+    data class JsonNumber(val n: Double) : Json() {
+        override fun toString(): String = "JsonNumber($n)"
+    }
+
+    data class JsonString(val str: String) : Json() {
+        override fun toString(): String = "JsonString(\"$str\")"
+    }
+
+    data class JsonArray(val arr: List<Json>) : Json() {
+        override fun toString(): String = "JsonArray($arr)"
+    }
+
+    data class JsonObject(val map: Map<JsonString, Json>) : Json() {
+        override fun toString(): String = "JsonObject($map)"
+    }
+}
+
 private fun List<String>.concatString(): String {
     val sb = StringBuilder()
     forEach { sb.append(it) }
@@ -38,7 +71,7 @@ private fun List<String>.concatString(): String {
 }
 
 val jsonRootParser = Parser.run {
-    val jsonNull = string("null").followedBy(pure(Json.Null))
+    val jsonNull = string("null").followedBy(pure(Json.JsonNull))
     val jsonBool = string("true").followedBy(pure(Json.JsonBool(true)))
         .alt(string("false").followedBy(pure(Json.JsonBool(false))))
     val digit: Parser<Char, Nothing, Char> = satisfy(setOf(ErrorItem.Label("Digit"))) { c: Char -> c in '0'..'9' }
@@ -75,7 +108,7 @@ val jsonRootParser = Parser.run {
         char('\n'),
         char('\t'),
         char('\r'),
-    ).many().followedBy(pure(Unit))
+    ).many().void()
 
     lateinit var jsonArray: Parser<Char, Nothing, Json.JsonArray>
     lateinit var jsonObject: Parser<Char, Nothing, Json.JsonObject>
@@ -124,7 +157,8 @@ val jsonRootParser = Parser.run {
                         tail.forEach { put(it.first, it.second) }
                     }
                     Json.JsonObject(map)
-                }.followedByDiscard(char('}'))
+                }
+                    .followedByDiscard(char('}'))
             )
         )
 

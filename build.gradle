@@ -5,6 +5,7 @@ buildscript {
     ext.kotlin_serialization_version = "1.0.1"
     ext.better_parse_version = "0.4.0"
     ext.helios_version = "0.2.0"
+    ext.confundus_version = "1.0.0"
 
     repositories {
         maven {
@@ -15,6 +16,7 @@ buildscript {
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath "org.jetbrains.kotlinx:kotlinx.benchmark.gradle:$kotlin_benchmark_version"
+        classpath "com.jakewharton.confundus:confundus-gradle:$confundus_version"
     }
 }
 

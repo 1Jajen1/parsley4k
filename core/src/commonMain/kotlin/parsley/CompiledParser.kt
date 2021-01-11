@@ -2,6 +2,7 @@ package parsley
 
 import parsley.internal.backend.ParseStatus
 import parsley.internal.backend.StackMachine
+import parsley.internal.unsafe
 
 // TODO add suspend based streaming version
 abstract class CompiledParser<I, IArr, E, A> internal constructor() {
@@ -25,15 +26,9 @@ abstract class CompiledParser<I, IArr, E, A> internal constructor() {
         while (true) {
             machine.execute()
             when (val stat = machine.status) {
-                is ParseStatus.Ok -> return ParseResult.Success(machine.dataStack.pop() as A, getRemaining())
-                is ParseStatus.NeedInput -> machine.failWith(
-                    ParseError.Trivial(
-                        unexpected = ErrorItem.EndOfInput,
-                        expected = stat.expected,
-                        offset = machine.inputOffset
-                    )
-                )
-                is ParseStatus.Failed -> return ParseResult.Error(stat.error, getRemaining())
+                is ParseStatus.Ok -> return ParseResult.Success(machine.dataStack.pop().unsafe(), getRemaining())
+                is ParseStatus.NeedInput -> machine.failWith()
+                is ParseStatus.Failed -> return ParseResult.Error(getRemaining())
             }
         }
     }
@@ -41,11 +36,11 @@ abstract class CompiledParser<I, IArr, E, A> internal constructor() {
 
 sealed class ParseResult<out I, IArr, out E, out A> {
     data class Success<IArr, out A>(val result: A, val remaining: IArr) : ParseResult<Nothing, IArr, Nothing, A>()
-    data class Error<out I, IArr, out E>(val error: ParseError<I, E>, val remaining: IArr) :
+    data class Error<out I, IArr, out E>(val remaining: IArr) :
         ParseResult<I, IArr, E, Nothing>()
 
-    inline fun <C> fold(onError: (ParseError<I, E>, IArr) -> C, onSuccess: (A, IArr) -> C): C = when (this) {
+    inline fun <C> fold(onError: (IArr) -> C, onSuccess: (A, IArr) -> C): C = when (this) {
         is Success -> onSuccess(result, remaining)
-        is Error -> onError(error, remaining)
+        is Error -> onError(remaining)
     }
 }

@@ -6,7 +6,7 @@ import parsley.Parser
 import parsley.internal.frontend.ParserF
 
 fun <I, E, A, B> Parser<I, E, Either<A, B>>.select(onLeft: Parser<I, E, (A) -> B>): Parser<I, E, B> =
-    Parser(ParserF.Select(this, onLeft))
+    Parser(ParserF.Select(parserF, onLeft.parserF))
 
 fun <I, E, A, B, C> Parser<I, E, Either<A, B>>.branch(
     onLeft: Parser<I, E, (A) -> C>,

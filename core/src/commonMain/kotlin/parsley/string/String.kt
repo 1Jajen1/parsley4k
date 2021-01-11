@@ -6,6 +6,8 @@ import parsley.ParseError
 import parsley.Parser
 import parsley.combinators.followedBy
 import parsley.combinators.pure
+import parsley.internal.frontend.ParserF
+import parsley.internal.frontend.Predicate
 import parsley.single
 import kotlin.math.max
 
@@ -15,6 +17,8 @@ fun Parser.Companion.string(str: String): Parser<Char, Nothing, String> =
     str.reversed().fold(Parser.pure("") as Parser<Char, Nothing, String>) { acc, c ->
         char(c).followedBy(acc)
     }.followedBy(Parser.pure(str))
+
+fun <E> Parser<Char, E, List<Char>>.concatString(): Parser<Char, E, String> = Parser(ParserF.ConcatString(parserF))
 
 // TODO Some parts of error printing should be moved to generic
 // Showing errors produced by Char parsers
@@ -37,12 +41,12 @@ interface ShowErrorComponent {
     fun showPretty(): String
 }
 
-fun <E: ShowErrorComponent> ParseError<Char, E>.showPretty(
+fun <E : ShowErrorComponent> ParseError<Char, E>.showPretty(
     input: String,
     tabSize: Int = 4
 ): String = showPretty(input.toCharArray(), tabSize)
 
-fun <E: ShowErrorComponent> ParseError<Char, E>.showPretty(
+fun <E : ShowErrorComponent> ParseError<Char, E>.showPretty(
     input: CharArray,
     tabSize: Int = 4
 ): String {
@@ -125,7 +129,8 @@ fun <E: ShowErrorComponent> ParseError<Char, E>.showPretty(
                 if (unexpected != null)
                     builder.append("unexpected: ").append(unexpected.show()).appendLine()
                 if (expected.isNotEmpty())
-                    builder.append("expected: ").append(expected.toList().joinToString("") { it.show() + " or " }.dropLast(4))
+                    builder.append("expected: ")
+                        .append(expected.toList().joinToString("") { it.show() + " or " }.dropLast(4))
             } else {
                 builder.append("unknown parse error").appendLine()
             }

@@ -8,6 +8,7 @@ import parsley.internal.backend.Handler
 import parsley.internal.backend.Instruction
 import parsley.internal.backend.Jumps
 import parsley.internal.backend.StackMachine
+import parsley.internal.unsafe
 
 internal class JumpOnFail<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: StackMachine<I, E>) {
@@ -30,12 +31,12 @@ internal class JumpOnFailHandler<I, E>(
     val retStackOffset: Int,
     val to: Int
 ) : Handler<I, E> {
-    override fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>) {
+    override fun onFail(machine: StackMachine<I, E>) {
         if (machine.inputOffset != offset) {
-            return machine.failWith(error)
+            return machine.failWith()
         }
-        while (stackOffset < machine.dataStack.size()) machine.dataStack.pop()
-        while (retStackOffset < machine.returnStack.size()) machine.returnStack.pop()
+        machine.dataStack.setOffset(stackOffset)
+        machine.returnStack.setOffset(retStackOffset)
         machine.jump(to)
     }
 }
@@ -57,19 +58,15 @@ internal class ResetOffset<I, E> : Instruction<I, E> {
 }
 
 internal class ResetOffsetHandler<I, E>(val offset: Int) : Handler<I, E> {
-    override fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>) {
+    override fun onFail(machine: StackMachine<I, E>) {
         machine.inputOffset = offset
-        machine.failWith(error)
+        machine.failWith()
     }
 }
 
 internal class PopHandler<I, E> : Instruction<I, E> {
     override fun apply(machine: StackMachine<I, E>) {
-        try {
-            machine.handlerStack.pop().onRemove(machine)
-        } catch (e: Throwable) {
-            println("")
-        }
+        machine.handlerStack.pop().onRemove(machine)
     }
 
     override fun toString(): String = "PopHandler"
@@ -89,9 +86,9 @@ internal class Jump<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun toString(): String = "Jump($to)"
 }
 
-internal class Fail<I, E>(override var error: ParseError<I, E>) : Instruction<I, E>, CanFail<I, E> {
+internal class Fail<I, E> : Instruction<I, E>, CanFail<I, E> {
     override fun apply(machine: StackMachine<I, E>) {
-        machine.failWith(error)
+        machine.failWith()
     }
 
     override fun toString(): String = "Fail"
@@ -118,23 +115,22 @@ internal class JumpOnFailAndFailOnSuccessHandler<I, E>(
     val retStackOffset: Int,
     val to: Int
 ) : Handler<I, E> {
-    override fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>) {
-        while (stackOffset < machine.dataStack.size()) machine.dataStack.pop()
-        while (retStackOffset < machine.returnStack.size()) machine.returnStack.pop()
+    override fun onFail(machine: StackMachine<I, E>) {
+        machine.dataStack.setOffset(stackOffset)
+        machine.returnStack.setOffset(retStackOffset)
+
         machine.inputOffset = offset
         machine.jump(to)
     }
 
     override fun onRemove(machine: StackMachine<I, E>) {
-        machine.inputOffset = offset
-        val fst = if (machine.hasMore()) ErrorItem.Tokens(machine.take()) else ErrorItem.EndOfInput
-        machine.failWith(ParseError.Trivial(unexpected = fst, offset = offset))
+        machine.failWith()
     }
 }
 
 internal class JumpOnRight<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: StackMachine<I, E>) {
-        val top = machine.dataStack.pop() as Either<Any?, Any?>
+        val top = machine.dataStack.pop().unsafe<Either<Any?, Any?>>()
         top.fold({
             machine.dataStack.push(it)
         }, {
@@ -182,9 +178,10 @@ internal class JumpOnFailPureHandler<I, E>(
     val retStackOffset: Int,
     val to: Int
 ) : Handler<I, E> {
-    override fun onFail(machine: StackMachine<I, E>, error: ParseError<I, E>) {
-        while (stackOffset < machine.dataStack.size()) machine.dataStack.pop()
-        while (retStackOffset < machine.returnStack.size()) machine.returnStack.pop()
+    override fun onFail(machine: StackMachine<I, E>) {
+        machine.dataStack.setOffset(stackOffset)
+        machine.returnStack.setOffset(retStackOffset)
+
         machine.jump(to)
     }
 }

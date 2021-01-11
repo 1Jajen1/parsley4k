@@ -1,12 +1,6 @@
 package parsley.internal.backend.util
 
-internal interface Stack<A> {
-    fun push(a: A): Unit
-    fun pop(): A
-    fun size(): Int
-    fun peek(): A
-    fun clear(): Unit
-}
+import parsley.internal.unsafe
 
 internal class IntStack {
     private var arr: IntArray = IntArray(INITIAL_SIZE)
@@ -25,6 +19,10 @@ internal class IntStack {
 
     fun size(): Int = offset
 
+    fun setOffset(n: Int) {
+        offset = n
+    }
+
     fun clear() {
         offset = 0
         arr = IntArray(INITIAL_SIZE)
@@ -35,28 +33,32 @@ internal class IntStack {
     }
 
     companion object {
-        private const val INITIAL_SIZE = 32
+        private const val INITIAL_SIZE = 8
     }
 }
 
-internal class ArrayStack<A>: Stack<A> {
+internal class ArrayStack<A> {
     private var arr: Array<Any?> = arrayOfNulls(INITIAL_SIZE)
     private var offset = 0
 
-    override fun push(a: A): Unit {
+    fun push(a: A): Unit {
         if (offset >= arr.size) grow()
         arr[offset++] = a
     }
 
-    override fun pop(): A {
-        return arr[--offset] as A
+    fun pop(): A {
+        return arr[--offset].unsafe()
     }
 
-    override fun peek(): A = arr[offset - 1] as A
+    fun peek(): A = arr[offset - 1].unsafe()
 
-    override fun size(): Int = offset
+    fun size(): Int = offset
 
-    override fun clear() {
+    fun setOffset(n: Int) {
+        offset = n
+    }
+
+    fun clear() {
         offset = 0
         arr = arrayOfNulls(INITIAL_SIZE)
     }
@@ -66,6 +68,6 @@ internal class ArrayStack<A>: Stack<A> {
     }
 
     companion object {
-        private const val INITIAL_SIZE = 32
+        private const val INITIAL_SIZE = 8
     }
 }

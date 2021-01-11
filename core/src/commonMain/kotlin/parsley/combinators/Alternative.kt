@@ -5,16 +5,16 @@ import parsley.Parser
 import parsley.internal.frontend.ParserF
 import parsley.recursive
 
-fun <I, E, A> Parser<I, E, A>.alt(p: Parser<I, E, A>): Parser<I, E, A> = Parser(ParserF.Alt(this, p))
+fun <I, E, A> Parser<I, E, A>.alt(p: Parser<I, E, A>): Parser<I, E, A> = Parser(ParserF.Alt(parserF, p.parserF))
 
-fun Parser.Companion.empty(): Parser<Nothing, Nothing, Nothing> = Parser(ParserF.Empty())
+fun Parser.Companion.empty(): Parser<Nothing, Nothing, Nothing> = Parser(ParserF.Empty)
 
-fun <I, E, A> Parser<I, E, A>.orElse(p: Parser<I, E, A>): Parser<I, E, A> = Parser(ParserF.Alt(this, p))
+fun <I, E, A> Parser<I, E, A>.orElse(p: Parser<I, E, A>): Parser<I, E, A> = Parser(ParserF.Alt(parserF, p.parserF))
 
-fun <I, E, A> Parser<I, E, A>.many(): Parser<I, E, List<A>> = Parser(ParserF.Many(this))
+fun <I, E, A> Parser<I, E, A>.many(): Parser<I, E, List<A>> = Parser(ParserF.Many(parserF))
 
 fun <I, E, A> Parser<I, E, A>.some(): Parser<I, E, NonEmptyList<A>> =
-    many().filterMap { xs -> if (xs.isEmpty()) null else NonEmptyList(xs.first(), xs.drop(1)) }
+    mapTo(many()) { head, xs -> NonEmptyList(head, xs) }
 
 fun <I, E, A> Parser.Companion.choice(
     p1: Parser<I, E, A>,

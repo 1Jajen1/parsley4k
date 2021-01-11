@@ -3,24 +3,26 @@ package parsley.internal.frontend
 import arrow.Either
 import arrow.map
 import parsley.Parser
-import parsley.ParserOf
 import parsley.attempt
 import parsley.combinators.alt
 import parsley.combinators.ap
 import parsley.combinators.followedBy
 import parsley.combinators.followedByDiscard
+import parsley.combinators.many
 import parsley.combinators.map
 import parsley.combinators.pure
-import parsley.fix
+import parsley.internal.backend.optimise.isCheap
+import parsley.internal.unsafe
 import parsley.lookAhead
 import parsley.negLookAhead
 
-fun <I, E, A> Parser<I, E, A>.optimise(): Parser<I, E, A> =
-    cata<I, E, A, ParserOf<I, E>> { p ->
+@OptIn(ExperimentalStdlibApi::class)
+fun <I, E, A> Parser<I, E, A>.optimise(): Parser<I, E, Any?> =
+    DeepRecursiveFunction<ParserF<I, E, Any?>, ParserF<I, E, Any?>> { p ->
         when (p) {
-            is ParserF.Ap<ParserOf<I, E>, *, A> -> {
-                val pf = p.pF.fix().parserF as ParserF<I, E, ParserOf<I, E>, (Any?) -> A>
-                val pa = p.pA.fix().parserF
+            is ParserF.Ap<I, E, *, Any?> -> {
+                val pf = callRecursive(p.pF).unsafe<ParserF<I, E, (Any?) -> Any>>()
+                val pa = callRecursive(p.pA)
                 when {
                     // Pure f <*> Pure a = Pure (f a)
                     pf is ParserF.Pure && pa is ParserF.Pure -> {
@@ -30,84 +32,87 @@ fun <I, E, A> Parser<I, E, A>.optimise(): Parser<I, E, A> =
                     pa is ParserF.Pure -> {
                         Parser.pure { f: (Any?) -> Any? -> f(pa.a) }
                             .ap(Parser(pf))
-                            .optimise().parserF
+                            .parserF.let { callRecursive(it) }
                     }
                     // p <*> (q <*> r) = Pure compose <*> p <*> q <*> r
-                    pa is ParserF.Ap<ParserOf<I, E>, *, Any?> -> {
+                    pa is ParserF.Ap<I, E, *, Any?> -> {
                         Parser.pure { f: (Any?) -> Any? -> { g: (Any?) -> Any? -> f.compose(g) } }
                             .ap(Parser(pf))
-                            .ap(pa.pF.fix() as Parser<I, E, (Any?) -> Any?>)
-                            .ap(pa.pA.fix())
-                            .optimise().parserF
+                            .ap(Parser(pa.pF.unsafe()))
+                            .ap(Parser(pa.pA))
+                            .parserF.let { callRecursive(it) }
                     }
                     // (p *> q) <*> r == p *> (q <*> r)
-                    pf is ParserF.ApR<ParserOf<I, E>, *, (Any?) -> A> -> {
-                        pf.pA.fix().followedBy(pf.pB.fix().ap(Parser(pa)))
-                            .optimise().parserF
+                    pf is ParserF.ApR<I, E, *, (Any?) -> Any?> -> {
+                        Parser(pf.pA).followedBy(Parser(pf.pB).ap(Parser(pa)))
+                            .parserF.let { callRecursive(it) }
                     }
                     // empty <*> x = empty || x <*> empty = empty
                     pf is ParserF.Empty -> pf
                     pa is ParserF.Empty -> pa
-                    else -> p
+                    else -> ParserF.Ap(pf, pa)
                 }
             }
-            is ParserF.ApL<ParserOf<I, E>, A, *> -> {
-                val l = p.pA.fix().parserF
-                val r = p.pB.fix().parserF
+            is ParserF.ApL<I, E, Any?, *> -> {
+                val l = callRecursive(p.pA)
+                val r = callRecursive(p.pB)
                 when {
                     // p <* Pure _ = p
                     r is ParserF.Pure -> l
                     // Pure x <* p = p *> Pure x
-                    l is ParserF.Pure -> p.pB.fix().followedBy(p.pA.fix()).optimise().parserF
+                    l is ParserF.Pure -> Parser(p.pB).followedBy(Parser(p.pA))
+                        .parserF.let { callRecursive(it) }
                     // p <* (q *> Pure _) = p <* q
-                    r is ParserF.ApR<ParserOf<I, E>, *, *> && r.pB.fix().parserF is ParserF.Pure -> {
-                        p.pA.fix().followedByDiscard(r.pA.fix()).optimise().parserF
+                    r is ParserF.ApR<I, E, *, *> && r.pB is ParserF.Pure -> {
+                        Parser(p.pA).followedByDiscard(Parser(r.pA))
+                            .parserF.let { callRecursive(it) }
                     }
                     // p <* (Pure _ <* q) = p <* q
-                    r is ParserF.ApL<ParserOf<I, E>, *, *> && r.pA.fix().parserF is ParserF.Pure -> {
-                        p.pA.fix().followedByDiscard(r.pB.fix()).optimise().parserF
+                    r is ParserF.ApL<I, E, *, *> && r.pA is ParserF.Pure -> {
+                        Parser(p.pA).followedByDiscard(Parser(r.pB))
+                            .parserF.let { callRecursive(it) }
                     }
                     // (p <* q) <* r == p <* (q <* r)
-                    l is ParserF.ApL<ParserOf<I, E>, *, *> -> {
-                        l.pA.fix().followedByDiscard(l.pB.fix().followedByDiscard(p.pB.fix()))
-                            .optimise().parserF
+                    l is ParserF.ApL<I, E, *, *> -> {
+                        Parser(l.pA).followedByDiscard(Parser(l.pB).followedByDiscard(Parser(p.pB)))
+                            .parserF.let { callRecursive(it) }
                     }
                     // empty <* p == p && p <* empty == p
                     l is ParserF.Empty -> l
                     r is ParserF.Empty -> r
-                    else -> p
+                    else -> ParserF.ApL(l, r)
                 }
             }
-            is ParserF.ApR<ParserOf<I, E>, *, A> -> {
-                val l = p.pA.fix().parserF
-                val r = p.pB.fix().parserF
+            is ParserF.ApR<I, E, *, Any?> -> {
+                val l = callRecursive(p.pA)
+                val r = callRecursive(p.pB)
                 when {
                     // Pure _ *> p == p
                     l is ParserF.Pure -> r
                     // (p *> Pure _) *> q == p *> q
-                    l is ParserF.ApR<ParserOf<I, E>, *, *> && l.pB.fix().parserF is ParserF.Pure -> {
-                        l.pA.fix().followedBy(p.pB.fix())
-                            .optimise().parserF
+                    l is ParserF.ApR<I, E, *, *> && l.pB is ParserF.Pure -> {
+                        Parser(l.pA).followedBy(Parser(p.pB))
+                            .parserF.let { callRecursive(it) }
                     }
                     // (Pure _ <* p) *> q == p *> q
-                    l is ParserF.ApL<ParserOf<I, E>, *, *> && l.pA.fix().parserF is ParserF.Pure -> {
-                        l.pB.fix().followedBy(p.pB.fix())
-                            .optimise().parserF
+                    l is ParserF.ApL<I, E, *, *> && l.pA is ParserF.Pure -> {
+                        Parser(l.pB).followedBy(Parser(p.pB))
+                            .parserF.let { callRecursive(it) }
                     }
                     // p *> (q *> r) == (p *> q) *> r
-                    r is ParserF.ApR<ParserOf<I, E>, *, A> -> {
-                        p.pA.fix().followedBy(r.pA.fix()).followedBy(r.pB.fix())
-                            .optimise().parserF
+                    r is ParserF.ApR<I, E, *, Any?> -> {
+                        Parser(p.pA).followedBy(Parser(r.pA)).followedBy(Parser(r.pB))
+                            .parserF.let { callRecursive(it) }
                     }
                     // empty *> p && p *> empty == empty
                     l is ParserF.Empty -> l
                     r is ParserF.Empty -> r
-                    else -> p
+                    else -> ParserF.ApR(l, r)
                 }
             }
             is ParserF.Alt -> {
-                val l = p.left.fix().parserF
-                val r = p.right.fix().parserF
+                val l = callRecursive(p.left)
+                val r = callRecursive(p.right)
                 when {
                     // Pure x <|> p == Pure x
                     l is ParserF.Pure -> l
@@ -118,39 +123,39 @@ fun <I, E, A> Parser<I, E, A>.optimise(): Parser<I, E, A> =
                     r is ParserF.Empty -> l
                     // (p <|> q) <|> r = p <|> (q <|> r)
                     l is ParserF.Alt -> {
-                        l.left.fix().alt(l.right.fix().alt(p.right.fix()))
-                            .optimise().parserF
+                        Parser(l.left).alt(Parser(l.right).alt(Parser(p.right)))
+                            .parserF.let { callRecursive(it) }
                     }
                     // LookAhead p <|> LookAhead q = LookAhead (Attempt p <|> q)
                     l is ParserF.LookAhead && r is ParserF.LookAhead ->
-                        l.p.fix().attempt().alt(r.p.fix()).lookAhead()
-                            .optimise().parserF
+                        Parser(l.p).attempt().alt(Parser(r.p)).lookAhead()
+                            .parserF.let { callRecursive(it) }
                     // NotFollowedBy p <|> NotFollowedBy q = NotFollowedBy (LookAhead p *> LookAhead q)
                     l is ParserF.NegLookAhead && r is ParserF.NegLookAhead ->
-                        l.p.fix().lookAhead().followedBy(r.p.fix().lookAhead()).negLookAhead()
-                            .optimise().parserF
-                    else -> p
+                        Parser(l.p).lookAhead().followedBy(Parser(r.p).lookAhead()).negLookAhead()
+                            .parserF.let { callRecursive(it) }
+                    else -> ParserF.Alt(l, r)
                 }
             }
-            is ParserF.Select<ParserOf<I, E>, *, A> -> {
-                val l = p.pEither.fix().parserF
-                val r = p.pIfLeft.fix().parserF
+            is ParserF.Select<I, E, *, Any?> -> {
+                val l = callRecursive(p.pEither).unsafe<ParserF<I, E, Either<Any?, Any?>>>()
+                val r = callRecursive(p.pIfLeft).unsafe<ParserF<I, E, (Any?) -> Any?>>()
                 when {
                     // Select (Pure (Left x)) ifL = iFl <*> Pure x
-                    l is ParserF.Pure && l.a is Either.Left ->
-                        (p.pIfLeft.fix() as Parser<I, E, (Any?) -> A>).ap(Parser.pure(l.a.a))
-                            .optimise().parserF
+                    l is ParserF.Pure && l.a is Either.Left<Any?> ->
+                        Parser(r).ap(Parser.pure(l.a.a))
+                            .parserF.let { callRecursive(it) }
                     // Select (Pure (Right x)) _ = Pure x
-                    l is ParserF.Pure && l.a is Either.Right -> ParserF.Pure(l.a.b)
+                    l is ParserF.Pure && l.a is Either.Right<Any?> -> ParserF.Pure(l.a.b)
                     // Select p (Pure f) = (\e -> either f id) <$> p
                     r is ParserF.Pure ->
-                        p.pEither.fix().map { it.map(r.a as (Any?) -> A) }
-                            .optimise().parserF
-                    else -> p
+                        Parser(p.pEither).map { it.map(r.a) }
+                            .parserF.let { callRecursive(it) }
+                    else -> ParserF.Select(l, r)
                 }
             }
             is ParserF.LookAhead -> {
-                when (val pInner = p.p.fix().parserF) {
+                when (val pInner = callRecursive(p.p)) {
                     // LookAhead (Pure x) == Pure x
                     is ParserF.Pure -> pInner
                     // LookAhead Empty = Empty
@@ -159,46 +164,50 @@ fun <I, E, A> Parser<I, E, A>.optimise(): Parser<I, E, A> =
                     is ParserF.LookAhead -> pInner
                     // LookAhead (NotFollowedBy p) = NotFollowedBy p
                     is ParserF.NegLookAhead -> pInner
-                    else -> p
+                    else -> ParserF.LookAhead(pInner)
                 }
             }
             is ParserF.NegLookAhead -> {
-                when (val pInner = p.p.fix().parserF) {
+                when (val pInner = callRecursive(p.p)) {
                     // NotFollowedBy (Pure _) = Empty
-                    is ParserF.Pure -> ParserF.Empty<I, E>()
+                    is ParserF.Pure -> ParserF.Empty
                     // NotFollowedBy Empty = Pure Unit
                     is ParserF.Empty -> ParserF.Pure(Unit)
                     // NotFollowedBy (NotFollowedBy p) == LookAhead p
                     is ParserF.NegLookAhead -> ParserF.LookAhead(pInner.p)
                     // NotFollowedBy (Try p <|> q) == NotFollowedBy p *> NotFollowedBy q
                     is ParserF.Alt -> {
-                        if (pInner.left.fix().parserF is ParserF.Attempt) {
-                            (pInner.left.fix().parserF as ParserF.Attempt<ParserOf<I, E>, Any?>).p.fix()
-                                .negLookAhead().followedBy(pInner.right.fix().negLookAhead())
-                                .optimise().parserF
-                        } else p
+                        if (pInner.left is ParserF.Attempt) {
+                            Parser(pInner.left.p)
+                                .negLookAhead().followedBy(Parser(pInner.right).negLookAhead())
+                                .parserF.let { callRecursive(it) }
+                        } else ParserF.NegLookAhead(pInner)
                     }
-                    else -> p
+                    else -> ParserF.NegLookAhead(pInner)
                 }
             }
             is ParserF.Attempt -> {
-                when (val pInner = p.p.fix().parserF) {
-                    is ParserF.Satisfy<*> -> pInner
+                when (val pInner = callRecursive(p.p)) {
+                    is ParserF.Satisfy<*> -> pInner.unsafe()
                     is ParserF.Single<*> -> pInner
                     is ParserF.Pure -> pInner
                     is ParserF.Attempt -> pInner
                     is ParserF.NegLookAhead -> pInner
-                    else -> p
+                    else -> ParserF.Attempt(pInner)
                 }
             }
-            is ParserF.Many<ParserOf<I, E>, *> -> {
-                when (val pInner = p.p.fix().parserF) {
-                    is ParserF.Pure -> throw IllegalStateException("Many never consumes input and thus never finishes")
-                    else -> p
+            is ParserF.Many<I, E, Any?> -> {
+                val pInner = callRecursive(p.p)
+                when {
+                    pInner is ParserF.Pure -> throw IllegalStateException("Many never consumes input and thus never finishes")
+                    else -> ParserF.Many(pInner)
                 }
+            }
+            is ParserF.ConcatString -> {
+                ParserF.ConcatString(callRecursive(p.p.unsafe()).unsafe<ParserF<Char, E, List<Char>>>()).unsafe()
             }
             else -> p
-        }.let(::Parser) as Parser<I, E, A>
-    }.fix()
+        }
+    }.invoke(parserF).let(::Parser)
 
 private fun <A, B, C> ((A) -> B).compose(g: (C) -> A): (C) -> B = { c -> this(g(c)) }

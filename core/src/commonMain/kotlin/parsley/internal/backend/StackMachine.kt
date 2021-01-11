@@ -1,20 +1,17 @@
 package parsley.internal.backend
 
-import parsley.ErrorItem
 import parsley.ParseError
 import parsley.internal.backend.util.ArrayStack
 import parsley.internal.backend.util.IntStack
-import parsley.internal.backend.util.Stack
-import parsley.longestMatch
 
 internal abstract class StackMachine<I, E>(val instructions: Array<Instruction<I, E>>) {
     var status: ParseStatus<I, E> = ParseStatus.Ok
     var inputOffset = 0
     var programCounter = 0
 
-    val dataStack: Stack<Any?> = ArrayStack()
+    val dataStack = ArrayStack<Any?>()
     val returnStack: IntStack = IntStack()
-    val handlerStack: Stack<Handler<I, E>> = ArrayStack()
+    val handlerStack = ArrayStack<Handler<I, E>>()
     var lastError: ParseError<I, E>? = null
 
     fun call(to: Int): Unit {
@@ -30,13 +27,11 @@ internal abstract class StackMachine<I, E>(val instructions: Array<Instruction<I
         programCounter = to
     }
 
-    fun failWith(err: ParseError<I, E>): Unit {
+    fun failWith(): Unit {
         if (handlerStack.size() > 0)
-            handlerStack.pop().onFail(this, err)
+            handlerStack.pop().onFail(this)
         else {
-            status =
-                if (lastError != null) ParseStatus.Failed(lastError!!.longestMatch(err))
-                else ParseStatus.Failed(err)
+            status = ParseStatus.Failed()
         }
     }
 
@@ -53,6 +48,6 @@ internal abstract class StackMachine<I, E>(val instructions: Array<Instruction<I
 
 internal sealed class ParseStatus<out I, out E> {
     object Ok : ParseStatus<Nothing, Nothing>()
-    class NeedInput<I>(val expected: Set<ErrorItem<I>>) : ParseStatus<I, Nothing>()
-    class Failed<I, E>(val error: ParseError<I, E>) : ParseStatus<I, E>()
+    class NeedInput<I> : ParseStatus<I, Nothing>()
+    class Failed<I, E> : ParseStatus<I, E>()
 }

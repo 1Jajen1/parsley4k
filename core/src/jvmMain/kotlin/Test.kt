@@ -93,12 +93,15 @@ val jsonRootParser = Parser.run {
         char('b').followedBy(pure("\b")),
         char('f').followedBy(pure("\\f")),
     )
+    // TODO Improve?
     val jsonString = char('"')
         .followedBy(
             unescapedChar.many().concatString().map { Json.JsonString(it) }
                 .followedByDiscard(char('"')).attempt()
                 .alt(
-                    unescapedChar.map { "$it" }.alt(char('\\').followedBy(specialChar))
+                    // TODO This causes a ton of String allocations
+                    unescapedChar.map { "$it" }
+                        .alt(char('\\').followedBy(specialChar))
                         .many().map { Json.JsonString(it.concatString()) }
                         .followedByDiscard(char('"'))
                 )
@@ -157,8 +160,7 @@ val jsonRootParser = Parser.run {
                         tail.forEach { put(it.first, it.second) }
                     }
                     Json.JsonObject(map)
-                }
-                    .followedByDiscard(char('}'))
+                }.followedByDiscard(char('}'))
             )
         )
 

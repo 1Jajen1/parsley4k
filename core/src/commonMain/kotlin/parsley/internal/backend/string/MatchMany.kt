@@ -68,6 +68,7 @@ internal class MatchManyCharsOf<E>(val c: CharArray) : Instruction<Char, E>, Pus
     override fun pushes(): Int = 1
 }
 
+// TODO Optimise?
 internal class MatchManyCharsOf_<E>(val c: CharArray) : Instruction<Char, E>, CanFail<Char, E>, Consumes {
     override fun apply(machine: StackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()

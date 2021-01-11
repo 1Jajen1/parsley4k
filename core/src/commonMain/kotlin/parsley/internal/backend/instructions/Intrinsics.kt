@@ -11,6 +11,7 @@ import parsley.internal.backend.util.IntStack
 import parsley.internal.frontend.Predicate
 
 // Helpers to implement intrinsic methods
+// TODO More efficient list implementation?
 internal class Many<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     var offset = -1
     val stackedOffsets = IntStack()

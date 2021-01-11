@@ -38,7 +38,7 @@ internal class SatisfyManyCharsAndMap<E>(val f: Predicate<Char>, val fa: (String
         val start = machine.inputOffset
         while (machine.hasMore()) {
             val c = machine.takeP()
-            // TODO vv This below boxes c
+            // TODO vv This below boxes c which costs us quite a bit
             if (f(c)) {
                 machine.consume()
             } else {

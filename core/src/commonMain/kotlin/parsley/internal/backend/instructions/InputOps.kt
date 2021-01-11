@@ -73,6 +73,7 @@ internal class Seek<I, E> : Instruction<I, E> {
     override fun toString(): String = "Seek"
 }
 
+// TODO Char version that can be used as drop in and uses a custom hash map to avoid boxing
 internal class JumpTable<I, E>(val to: MutableMap<I, Int>) : Instruction<I, E> {
     override fun apply(machine: StackMachine<I, E>) {
         if (machine.hasMore()) {

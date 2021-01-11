@@ -7,7 +7,12 @@ import parsley.internal.backend.Program
 import parsley.internal.backend.Pushes
 import parsley.internal.backend.instructions.Apply
 import parsley.internal.backend.instructions.Call
+import parsley.internal.backend.instructions.End
+import parsley.internal.backend.instructions.Exit
+import parsley.internal.backend.instructions.Fail
+import parsley.internal.backend.instructions.Label
 import parsley.internal.backend.instructions.Map
+import parsley.internal.backend.instructions.PopHandler
 import parsley.internal.backend.instructions.Push
 import parsley.internal.unsafe
 
@@ -76,6 +81,10 @@ internal fun <I, E> Method<I, E>.fuseInstructions(): Method<I, E> {
         val e2 = xs[curr + 1]
         val e3 = xs[curr + 2]
         when {
+            e1 is Fail && (e2 !is PopHandler && e2 !is Exit && e2 !is End && e2 !is Label) -> {
+                xs.removeAt(curr + 1)
+                curr--
+            }
             e3 is Map -> {
                 if (e2 is FuseMap<*, *>) {
                     xs.removeAt(curr + 1)

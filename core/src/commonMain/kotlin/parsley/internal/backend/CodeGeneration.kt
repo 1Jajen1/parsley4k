@@ -7,6 +7,7 @@ import parsley.internal.backend.instructions.Call
 import parsley.internal.backend.instructions.End
 import parsley.internal.backend.instructions.Exit
 import parsley.internal.backend.instructions.Fail
+import parsley.internal.backend.instructions.FailOnLeft
 import parsley.internal.backend.instructions.Flip
 import parsley.internal.backend.instructions.Jump
 import parsley.internal.backend.instructions.JumpOnFail
@@ -234,18 +235,22 @@ internal class DefaultCodeGen<I, E> : CodeGenFunc<I, E> {
                 if (!ctx.discard) ctx += Push(Unit)
             }
             is ParserF.Select<I, E, *, A> -> {
-                val rightLabel = ctx.mkLabel()
                 val prev = ctx.discard
                 ctx.discard = false
                 callRecursive(p.pEither)
                 ctx.discard = prev
-                ctx += JumpOnRight(rightLabel)
-                callRecursive(p.pIfLeft)
-                if (!ctx.discard) {
-                    ctx += Flip()
-                    ctx += Apply()
+                if (p.pIfLeft is ParserF.Empty) {
+                    ctx += FailOnLeft()
+                } else {
+                    val rightLabel = ctx.mkLabel()
+                    ctx += JumpOnRight(rightLabel)
+                    callRecursive(p.pIfLeft)
+                    if (!ctx.discard) {
+                        ctx += Flip()
+                        ctx += Apply()
+                    }
+                    ctx += Label(rightLabel)
                 }
-                ctx += Label(rightLabel)
             }
             is ParserF.Many<I, E, Any?> -> {
                 when {

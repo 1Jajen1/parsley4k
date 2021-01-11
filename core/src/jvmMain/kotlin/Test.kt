@@ -21,6 +21,7 @@ import parsley.string.string
 
 fun main() {
     ///*
+    // Thread.sleep(5_000)
     compiledJsonParser.execute(jsonSample1K).fold({ _ ->
         println("Err")
         // println(err.showPretty(jsonSample1K))
@@ -64,7 +65,7 @@ sealed class Json {
     }
 }
 
-private fun List<String>.concatString(): String {
+private fun List<Any>.concatString(): String {
     val sb = StringBuilder()
     forEach { sb.append(it) }
     return sb.toString()
@@ -85,23 +86,21 @@ val jsonRootParser = Parser.run {
     }.map { Json.JsonNumber(it.toDouble()) }
     val unescapedChar: Parser<Char, Nothing, Char> = satisfy(setOf(ErrorItem.Label("Any non \\ and \""))) { c: Char -> c != '\\' && c != '"' }
     val specialChar = choice(
-        char('"').followedBy(pure("\"")),
-        char('\\').followedBy(pure("\\")),
-        char('n').followedBy(pure("\n")),
-        char('r').followedBy(pure("\r")),
-        char('t').followedBy(pure("\t")),
-        char('b').followedBy(pure("\b")),
-        char('f').followedBy(pure("\\f")),
+        char('"').followedBy(pure("\\\"")),
+        char('\\').followedBy(pure("\\\\")),
+        char('n').followedBy(pure("\\\n")),
+        char('r').followedBy(pure("\\\r")),
+        char('t').followedBy(pure("\\\t")),
+        char('b').followedBy(pure("\\\b")),
+        char('f').followedBy(pure("\\\\f")),
     )
-    // TODO Improve?
+    val unescapedString = unescapedChar.many().concatString()
     val jsonString = char('"')
         .followedBy(
-            unescapedChar.many().concatString().map { Json.JsonString(it) }
+            unescapedString.map { Json.JsonString(it) }
                 .followedByDiscard(char('"')).attempt()
                 .alt(
-                    // TODO This causes a ton of String allocations
-                    unescapedChar.map { "$it" }
-                        .alt(char('\\').followedBy(specialChar))
+                    unescapedString.filter { it.isNotEmpty() }.alt(char('\\').followedBy(specialChar))
                         .many().map { Json.JsonString(it.concatString()) }
                         .followedByDiscard(char('"'))
                 )

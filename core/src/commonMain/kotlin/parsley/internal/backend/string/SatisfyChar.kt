@@ -34,7 +34,7 @@ internal class SatisfyChar<E>(
     override fun toString(): String = "SatisfyChar"
     override fun pushes(): Int = 1
     override fun consumes(): Int = 1
-    override fun fuseWith(f: (Any?) -> Any?): Instruction<Char, E> = SatisfyMap(this.f, f.unsafe(), expected)
+    override fun fuseWith(f: (Any?) -> Any?): Instruction<Char, E> = SatisfyCharMap(this.f, f.unsafe(), expected)
 }
 
 internal class SatisfyChar_<E>(

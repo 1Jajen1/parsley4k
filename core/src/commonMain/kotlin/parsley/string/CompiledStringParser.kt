@@ -175,7 +175,7 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
             prog.postProcess()
                 .optimise(label)
                 .toFinalProgram()
-                .also { it.mapIndexed { i, v -> i to v }.also(::println) }
+                // .also { it.mapIndexed { i, v -> i to v }.also(::println) }
                 .toTypedArray()
         )
     )

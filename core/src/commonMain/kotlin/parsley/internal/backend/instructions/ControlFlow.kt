@@ -142,6 +142,19 @@ internal class JumpOnRight<I, E>(override var to: Int) : Instruction<I, E>, Jump
     override fun toString(): String = "JumpOnRight($to)"
 }
 
+internal class FailOnLeft<I, E> : Instruction<I, E> {
+    override fun apply(machine: StackMachine<I, E>) {
+        val top = machine.dataStack.pop().unsafe<Either<Any?, Any?>>()
+        top.fold({
+            machine.failWith()
+        }, {
+            machine.dataStack.push(it)
+        })
+    }
+
+    override fun toString(): String = "FailOnLeft"
+}
+
 internal class Exit<I, E> : Instruction<I, E> {
     override fun apply(machine: StackMachine<I, E>) {
         machine.exit()

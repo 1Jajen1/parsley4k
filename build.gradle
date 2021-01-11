@@ -6,6 +6,7 @@ buildscript {
     ext.better_parse_version = "0.4.0"
     ext.helios_version = "0.2.0"
     ext.confundus_version = "1.0.0"
+    ext.kotlinx_immutable_version = "0.3.3"
 
     repositories {
         maven {
@@ -25,6 +26,7 @@ subprojects {
     version = "world"
 
     repositories {
+        jcenter()
         mavenCentral()
     }
 

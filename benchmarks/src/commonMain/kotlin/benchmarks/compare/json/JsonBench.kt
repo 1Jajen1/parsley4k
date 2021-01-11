@@ -1,7 +1,8 @@
-package benchmarks.json
+package benchmarks.compare.json
 
+import benchmarks.parsers.compiledJsonParser
+import benchmarks.parsers.jsonRootParser
 import com.github.h0tk3y.betterParse.grammar.parseToEnd
-import com.github.h0tk3y.betterParse.parser.parse
 import kotlinx.benchmark.Benchmark
 import kotlinx.benchmark.Scope
 import kotlinx.benchmark.State

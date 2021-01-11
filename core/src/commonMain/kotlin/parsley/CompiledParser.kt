@@ -44,3 +44,25 @@ sealed class ParseResult<out I, IArr, out E, out A> {
         is Error -> onError(remaining)
     }
 }
+
+data class CompileSettings(
+    val inlineSettings: InlineSettings = InlineSettings.Threshold(2),
+    val fusion: MapFusionSettings = MapFusionSettings.PerformFusion,
+    val jumpTableSettings: JumpTableSettings = JumpTableSettings.FullJumpTableGeneration
+)
+
+sealed class InlineSettings {
+    object NoInline : InlineSettings()
+    class Threshold(val size: Int): InlineSettings()
+}
+
+sealed class MapFusionSettings {
+    object PerformFusion: MapFusionSettings()
+    object DontPerformFusion: MapFusionSettings()
+}
+
+sealed class JumpTableSettings {
+    object FullJumpTableGeneration: JumpTableSettings()
+    object NoFallbackGeneration: JumpTableSettings()
+    object NoJumpTableGeneration: JumpTableSettings()
+}

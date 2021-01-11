@@ -2,6 +2,7 @@ package parsley.internal.frontend
 
 import arrow.Either
 import arrow.map
+import parsley.CompileSettings
 import parsley.Parser
 import parsley.attempt
 import parsley.combinators.alt
@@ -17,7 +18,7 @@ import parsley.lookAhead
 import parsley.negLookAhead
 
 @OptIn(ExperimentalStdlibApi::class)
-fun <I, E, A> Parser<I, E, A>.optimise(): Parser<I, E, Any?> =
+fun <I, E, A> Parser<I, E, A>.optimise(settings: CompileSettings): Parser<I, E, Any?> =
     DeepRecursiveFunction<ParserF<I, E, Any?>, ParserF<I, E, Any?>> { p ->
         when (p) {
             is ParserF.Ap<I, E, *, Any?> -> {

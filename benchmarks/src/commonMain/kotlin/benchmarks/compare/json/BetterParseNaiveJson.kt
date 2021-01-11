@@ -1,4 +1,4 @@
-package benchmarks.json
+package benchmarks.compare.json
 
 import com.github.h0tk3y.betterParse.combinators.asJust
 import com.github.h0tk3y.betterParse.combinators.map

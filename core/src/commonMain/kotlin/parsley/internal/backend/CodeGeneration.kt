@@ -1,6 +1,8 @@
 package parsley.internal.backend
 
+import parsley.CompileSettings
 import parsley.ErrorItem
+import parsley.JumpTableSettings
 import parsley.Parser
 import parsley.internal.backend.instructions.Apply
 import parsley.internal.backend.instructions.Call
@@ -33,19 +35,20 @@ import parsley.internal.unsafe
 
 // TODO Use a better class to represent this triple
 internal fun <I, E, A> Triple<Parser<I, E, A>, Map<Int, Parser<I, E, A>>, Int>.toProgram(
-    vararg funcs: CodeGenFunc<I, E>
+    vararg funcs: CodeGenFunc<I, E>,
+    settings: CompileSettings
 ): Pair<Program<I, E>, Int> {
     val (mainP, subP, highest) = this
     val ctx = CodeGenContext<I, E>(highest)
-    val mainM = mainP.codeGen(ctx, subP, *funcs)
-    val subM = subP.mapValues { (_, p) -> p.codeGen(ctx, subP, *funcs) }.toMutableMap()
+    val mainM = mainP.codeGen(ctx, subP, *funcs, settings = settings)
+    val subM = subP.mapValues { (_, p) -> p.codeGen(ctx, subP, *funcs, settings = settings) }.toMutableMap()
 
     val addedDiscarded = mutableSetOf<Int>()
     ctx.discard = true
     while (ctx.discardedSubs.isNotEmpty() && addedDiscarded.size != ctx.discardedSubs.size) {
         val (key, v) = ctx.discardedSubs.entries.first()
         addedDiscarded.add(key)
-        subM[v] = subP[key]!!.codeGen(ctx, subP, *funcs)
+        subM[v] = subP[key]!!.codeGen(ctx, subP, *funcs, settings = settings)
     }
     return Pair(
         Program(mainM, subM),
@@ -57,11 +60,15 @@ internal fun <I, E, A> Triple<Parser<I, E, A>, Map<Int, Parser<I, E, A>>, Int>.t
 internal fun <I, E, A> Parser<I, E, A>.codeGen(
     ctx: CodeGenContext<I, E> = CodeGenContext(0),
     subs: Map<Int, Parser<I, E, A>>,
-    vararg funcs: CodeGenFunc<I, E>
+    vararg funcs: CodeGenFunc<I, E>,
+    settings: CompileSettings
 ): Method<I, E> {
     return DeepRecursiveFunction<ParserF<I, E, Any?>, Unit> { p ->
-        (funcs.toList() + DefaultCodeGen()).forEach {
-            if (it.run { apply(p, subs, ctx) }) return@DeepRecursiveFunction
+        val toRun = Array(funcs.size + 1) { i ->
+            if (i < funcs.size) funcs[i] else DefaultCodeGen()
+        }
+        for (it in toRun) {
+            if (it.run { apply(p, subs, ctx, settings) }) return@DeepRecursiveFunction
         }
         throw IllegalStateException("No code generated for $p")
     }(this@codeGen.parserF).let {
@@ -93,7 +100,8 @@ internal interface CodeGenFunc<I, E> {
     suspend fun <A> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.apply(
         p: ParserF<I, E, A>,
         subs: Map<Int, Parser<I, E, A>>,
-        ctx: CodeGenContext<I, E>
+        ctx: CodeGenContext<I, E>,
+        settings: CompileSettings
     ): Boolean
 }
 
@@ -102,7 +110,8 @@ internal class DefaultCodeGen<I, E> : CodeGenFunc<I, E> {
     override suspend fun <A> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.apply(
         p: ParserF<I, E, A>,
         subs: Map<Int, Parser<I, E, A>>,
-        ctx: CodeGenContext<I, E>
+        ctx: CodeGenContext<I, E>,
+        settings: CompileSettings
     ): Boolean {
         when (p) {
             is ParserF.Pure -> {
@@ -152,6 +161,7 @@ internal class DefaultCodeGen<I, E> : CodeGenFunc<I, E> {
                 ctx += PopHandler()
             }
             is ParserF.Alt -> {
+                val tableSetting = settings.jumpTableSettings
                 // First try to turn nested alts into a table lookup
                 val (table, fallbackP) = p.toJumpTable(subs)
 

@@ -1,4 +1,4 @@
-package benchmarks.json
+package benchmarks.compare.json
 
 // From https://raw.githubusercontent.com/h0tk3y/better-parse/master/benchmarks/src/commonMain/kotlin/JsonInput.kt
 val jsonSample1K = """[{

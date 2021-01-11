@@ -19,6 +19,7 @@ kotlin {
         all {
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
+                implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:$kotlinx_immutable_version")
             }
         }
     }

@@ -1,5 +1,6 @@
 package parsley.string
 
+import parsley.CompileSettings
 import parsley.CompiledParser
 import parsley.ParseResult
 import parsley.Parser
@@ -83,7 +84,8 @@ internal class StringCodeGen<E> : CodeGenFunc<Char, E> {
     override suspend fun <A> DeepRecursiveScope<ParserF<Char, E, Any?>, Unit>.apply(
         p: ParserF<Char, E, A>,
         subs: Map<Int, Parser<Char, E, A>>,
-        ctx: CodeGenContext<Char, E>
+        ctx: CodeGenContext<Char, E>,
+        settings: CompileSettings
     ): Boolean =
         when (p) {
             is ParserF.ConcatString -> {
@@ -162,18 +164,18 @@ internal class StringCodeGen<E> : CodeGenFunc<Char, E> {
         }
 }
 
-fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
+fun <E, A> Parser<Char, E, A>.compile(settings: CompileSettings = CompileSettings()): CompiledStringParser<E, A> {
     val (bound, recs) = findLetBound()
     val (mainP, subs, highestLabel) = insertLets(bound, recs)
 
-    val (prog, label) = Triple(mainP.optimise(), subs.mapValues { (_, v) ->
-        v.optimise()
-    }, highestLabel).toProgram(StringCodeGen())
+    val (prog, label) = Triple(mainP.optimise(settings), subs.mapValues { (_, v) ->
+        v.optimise(settings)
+    }, highestLabel).toProgram(StringCodeGen(), settings = settings)
 
     return CompiledStringParser(
         StringStackMachine(
-            prog.postProcess()
-                .optimise(label)
+            prog.postProcess(settings)
+                .optimise(label, settings)
                 .toFinalProgram()
                 // .also { it.mapIndexed { i, v -> i to v }.also(::println) }
                 .toTypedArray()
@@ -181,16 +183,12 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
     )
 }
 
-internal fun <E> Program<Char, E>.postProcess(): Program<Char, E> {
+internal fun <E> Program<Char, E>.postProcess(settings: CompileSettings): Program<Char, E> {
     var (main, subs) = this
-    main = Method(main.instr.toMutableList().performCharOptimizations())
 
+    main = Method(main.instr.toMutableList().performCharOptimizations())
     subs = subs.mapValues { (_, s) -> Method(s.instr.toMutableList().performCharOptimizations()) }
 
-    inlinePass(main, subs).also { (m, s) ->
-        main = m
-        subs = s
-    }
     return Program(main, subs)
 }
 
@@ -244,8 +242,4 @@ internal fun <E> MutableList<Instruction<Char, E>>.performCharOptimizations(): M
         }
     }
     return this
-}
-
-internal fun <E> MutableList<Instruction<Char, E>>.loopify(): MutableList<Instruction<Char, E>> {
-    TODO()
 }

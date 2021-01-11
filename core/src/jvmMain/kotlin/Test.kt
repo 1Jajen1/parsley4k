@@ -21,13 +21,16 @@ import parsley.string.string
 
 fun main() {
     ///*
-    // Thread.sleep(5_000)
+    Thread.sleep(5_000)
+    jsonRootParser.compile()
+    /*
     compiledJsonParser.execute(jsonSample1K).fold({ _ ->
         println("Err")
         // println(err.showPretty(jsonSample1K))
     }, { res, _ ->
         println(res)
     })
+     */
     // while (true) {}
     //*/
     /*

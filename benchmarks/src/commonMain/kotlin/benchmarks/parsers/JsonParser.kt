@@ -1,4 +1,4 @@
-package benchmarks.json
+package benchmarks.parsers
 
 import parsley.ErrorItem
 import parsley.Parser

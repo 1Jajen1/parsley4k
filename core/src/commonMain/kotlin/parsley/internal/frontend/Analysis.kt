@@ -1,6 +1,8 @@
 package parsley.internal.frontend
 
 import arrow.Either
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentHashSetOf
 import parsley.Parser
 import parsley.internal.unsafe
 
@@ -9,7 +11,7 @@ import parsley.internal.unsafe
 internal fun <I, E, A> Parser<I, E, A>.findLetBound(): Pair<Set<ParserF<I, E, Any?>>, Set<ParserF<I, E, Any?>>> {
     val refCount = mutableMapOf<ParserF<I, E, Any?>, Int>()
     val recursives = mutableSetOf<ParserF<I, E, Any?>>()
-    DeepRecursiveFunction<Pair<Set<ParserF<I, E, Any?>>, ParserF<I, E, Any?>>, Unit> { (seen, p) ->
+    DeepRecursiveFunction<Pair<PersistentSet<ParserF<I, E, Any?>>, ParserF<I, E, Any?>>, Unit> { (seen, p) ->
         refCount[p].also { refCount[p] = it?.let { it + 1 } ?: 1 }
 
         if (seen.contains(p)) {
@@ -18,7 +20,7 @@ internal fun <I, E, A> Parser<I, E, A>.findLetBound(): Pair<Set<ParserF<I, E, An
         }
 
         if (refCount[p]!! == 1) {
-            val nS = seen + p
+            val nS = seen.add(p)
             when (p) {
                 is ParserF.Ap<I, E, *, Any?> -> {
                     callRecursive(nS to p.pF)
@@ -61,7 +63,7 @@ internal fun <I, E, A> Parser<I, E, A>.findLetBound(): Pair<Set<ParserF<I, E, An
                 else -> Unit
             }
         }
-    }(emptySet<ParserF<I, E, Any?>>() to parserF)
+    }(persistentHashSetOf<ParserF<I, E, Any?>>() to parserF)
     return Pair(refCount.filter { (_, v) -> v > 1 }.keys, recursives)
 }
 

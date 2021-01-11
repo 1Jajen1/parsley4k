@@ -1,5 +1,6 @@
 package parsley.internal.backend.optimise
 
+import parsley.CompileSettings
 import parsley.internal.backend.FuseMap
 import parsley.internal.backend.Instruction
 import parsley.internal.backend.Method
@@ -16,7 +17,7 @@ import parsley.internal.backend.instructions.PopHandler
 import parsley.internal.backend.instructions.Push
 import parsley.internal.unsafe
 
-internal fun <I, E> Program<I, E>.optimise(highestLabel: Int): Program<I, E> {
+internal fun <I, E> Program<I, E>.optimise(highestLabel: Int, settings: CompileSettings): Program<I, E> {
     var (mainP, subs) = this//.also { it.toFinalProgram().also(::println) }
     var labelC = highestLabel
     // 1. Instruction level optimisation: Iterate through all and offer them to matchers which modify them

@@ -41,3 +41,25 @@ fun Parser.Companion.satisfy(expected: Set<ErrorItem<Char>> = emptySet(), f: Cha
     Parser(ParserF.Satisfy(f, expected))
 
 fun <I> Parser.Companion.single(i: I): Parser<I, Nothing, I> = Parser(ParserF.Single(i))
+
+/**
+ * TODO List:
+ * - Split of string compilation from code gen and only replace instructions after the fact
+ *  - Investigate if that causes any problems with optimization...
+ * - Add Byte parser
+ * - Split into modules!
+ * - Benchmark Generic vs Byte vs Char
+ * - Optimise compilation pipeline:
+ *  - Benchmark compilation, profile and improve it.
+ *  - But first I probably need to restructure it a bit
+ * - Further optimise generated instructions
+ *  - Benchmark different simple parsers
+ *  - Setup ci and benchmark comparisons
+ * - Provide a nicer api
+ *  - Investigate dsl like betterParser although I do believe that is over the top
+ *  - recursive could maybe be just lazy
+ * - Error messages
+ *  - AFTER benchmark pipeline is set up to spot regressions early
+ * - Streaming parsing
+ *  - Investigate what needs to be done...
+ */

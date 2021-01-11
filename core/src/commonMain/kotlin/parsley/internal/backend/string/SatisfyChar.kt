@@ -9,6 +9,7 @@ import parsley.internal.backend.ParseStatus
 import parsley.internal.backend.Pushes
 import parsley.internal.backend.StackMachine
 import parsley.internal.backend.instructions.SatisfyMap
+import parsley.internal.collections.CharToIntMap
 import parsley.internal.frontend.CharPredicate
 import parsley.internal.unsafe
 
@@ -57,20 +58,6 @@ internal class SatisfyChar_<E>(
 
     override fun toString(): String = "SatisfyChar_"
     override fun consumes(): Int = 1
-}
-
-internal class JumpTableChar<E>(val to: MutableMap<Char, Int>) : Instruction<Char, E> {
-    override fun apply(machine: StackMachine<Char, E>) {
-        val machine = machine.unsafe<StringStackMachine<E>>()
-        if (machine.hasMore()) {
-            machine.takeP().let { i -> to[i] }?.let { machine.jump(it) } ?: machine.failWith()
-        } else {
-            // TODO This needs some thoughts. This is currently bugged if the fallback tries to consume
-            machine.failWith()
-        }
-    }
-
-    override fun toString(): String = "JumpTableChar($to)"
 }
 
 internal class SatisfyCharMap<E>(

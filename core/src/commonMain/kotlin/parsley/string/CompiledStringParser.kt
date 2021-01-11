@@ -13,7 +13,6 @@ import parsley.internal.backend.instructions.Satisfy
 import parsley.internal.backend.instructions.SatisfyMany
 import parsley.internal.backend.instructions.SatisfyMap
 import parsley.internal.backend.instructions.Satisfy_
-import parsley.internal.backend.optimise.inlinePass
 import parsley.internal.backend.optimise.optimise
 import parsley.internal.backend.string.CharListToString
 import parsley.internal.backend.string.MatchCharIn
@@ -26,14 +25,14 @@ import parsley.internal.backend.string.MatchManyCharsIn_
 import parsley.internal.backend.string.MatchManyCharsOf
 import parsley.internal.backend.string.MatchManyCharsOf_
 import parsley.internal.backend.string.MatchManyChars_
-import parsley.internal.backend.string.SingleChar
-import parsley.internal.backend.string.SingleChar_
 import parsley.internal.backend.string.MatchString
 import parsley.internal.backend.string.MatchString_
 import parsley.internal.backend.string.SatisfyChar
 import parsley.internal.backend.string.SatisfyCharMap
 import parsley.internal.backend.string.SatisfyChar_
 import parsley.internal.backend.string.SatisfyManyChars
+import parsley.internal.backend.string.SingleChar
+import parsley.internal.backend.string.SingleChar_
 import parsley.internal.backend.string.StringStackMachine
 import parsley.internal.backend.string.StringToCharList
 import parsley.internal.backend.toProgram
@@ -93,9 +92,6 @@ internal class StringCodeGen<E> : CodeGenFunc<Char, E> {
                 ctx += CharListToString()
                 true
             }
-            /* TODO Test
-            is ParserF.Satisfy<*> ->
-             */
             is ParserF.Many<Char, E, Any?> -> {
                 val set = p.p.collectAlternatives()
                 when {
@@ -160,6 +156,14 @@ internal class StringCodeGen<E> : CodeGenFunc<Char, E> {
                 }
                 true
             }
+            is ParserF.Satisfy<*> -> {
+                if (ctx.discard) {
+                    ctx += SatisfyChar_(p.match.unsafe(), p.expected.unsafe())
+                } else {
+                    ctx += SatisfyChar(p.match.unsafe(), p.expected.unsafe())
+                }
+                true
+            }
             else -> false
         }
 }
@@ -177,7 +181,7 @@ fun <E, A> Parser<Char, E, A>.compile(settings: CompileSettings = CompileSetting
             prog.postProcess(settings)
                 .optimise(label, settings)
                 .toFinalProgram()
-                // .also { it.mapIndexed { i, v -> i to v }.also(::println) }
+                .also { it.mapIndexed { i, v -> i to v }.also(::println) }
                 .toTypedArray()
         )
     )
@@ -198,6 +202,8 @@ internal fun <E> MutableList<Instruction<Char, E>>.performCharOptimizations(): M
         val el = get(curr++)
         val next = get(curr)
         when {
+            // TODO Replace every instruction that may have not already been replaced!
+                // TODO double check if I even need to do manual codegen when I have this step
             el is Satisfy -> {
                 removeAt(--curr)
                 add(curr, SatisfyChar(el.f.unsafe(), el.expected))

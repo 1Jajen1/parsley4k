@@ -6,7 +6,6 @@ import kotlinx.collections.immutable.persistentHashSetOf
 import parsley.Parser
 import parsley.internal.unsafe
 
-// TODO Recursion scheme?
 @OptIn(ExperimentalStdlibApi::class)
 internal fun <I, E, A> Parser<I, E, A>.findLetBound(): Pair<Set<ParserF<I, E, Any?>>, Set<ParserF<I, E, Any?>>> {
     val refCount = mutableMapOf<ParserF<I, E, Any?>, Int>()

@@ -74,6 +74,7 @@ internal class Seek<I, E> : Instruction<I, E> {
 }
 
 // TODO Char version that can be used as drop in and uses a custom hash map to avoid boxing
+// TODO Think about adding a radix trie implementation that can match single chars as well as text
 internal class JumpTable<I, E>(val to: MutableMap<I, Int>) : Instruction<I, E> {
     override fun apply(machine: StackMachine<I, E>) {
         if (machine.hasMore()) {

@@ -12,6 +12,7 @@ import parsley.combinators.mapTo
 import parsley.combinators.orNull
 import parsley.combinators.pure
 import parsley.combinators.void
+import parsley.internal.collections.CharToIntMap
 import parsley.recursive
 import parsley.satisfy
 import parsley.string.char
@@ -20,17 +21,12 @@ import parsley.string.concatString
 import parsley.string.string
 
 fun main() {
-    ///*
-    Thread.sleep(5_000)
-    jsonRootParser.compile()
-    /*
     compiledJsonParser.execute(jsonSample1K).fold({ _ ->
         println("Err")
         // println(err.showPretty(jsonSample1K))
     }, { res, _ ->
         println(res)
     })
-     */
     // while (true) {}
     //*/
     /*
@@ -135,7 +131,7 @@ val jsonRootParser = Parser.run {
         .followedBy(
             choice(
                 char(']').followedBy(pure(Json.JsonArray(emptyList()))),
-                jsonValueNoWhitespace.followedByDiscard(whitespace).mapTo(
+                whitespace.followedBy(jsonValueNoWhitespace).mapTo(
                     char(',').followedBy(jsonValue).many()
                 ) { head, tail ->
                     val xs = tail.toMutableList().apply { add(0, head) }
@@ -147,14 +143,13 @@ val jsonRootParser = Parser.run {
     val keyValuePairNoWhitespace =
         jsonString.mapTo(whitespace.followedBy(char(':')).followedBy(jsonValue)) { k, v -> k to v }
     val keyValuePair = whitespace.followedBy(keyValuePairNoWhitespace)
-        .followedByDiscard(whitespace)
 
     jsonObject = char('{')
         .followedBy(whitespace)
         .followedBy(
             choice(
                 char('}').followedBy(pure(Json.JsonObject(emptyMap()))),
-                keyValuePairNoWhitespace.followedByDiscard(whitespace).mapTo(
+                keyValuePairNoWhitespace.mapTo(
                     char(',').followedBy(keyValuePair).many()
                 ) { head, tail ->
                     val map = mutableMapOf<Json.JsonString, Json>().apply {

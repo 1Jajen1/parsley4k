@@ -1,5 +1,3 @@
-package benchmarks.parsers
-
 // From https://raw.githubusercontent.com/h0tk3y/better-parse/master/benchmarks/src/commonMain/kotlin/JsonInput.kt
 val jsonSample1K = """[{
                         "_id": "5789f4e5688f478d31e213cb",
@@ -991,7 +989,3 @@ val jsonSample1K = """[{
                         "greeting": "Hello, Soto Chase! You have 5 unread messages.",
                         "favoriteFruit": "banana"
                       }]""".trimIndent();
-
-val jsonSample1KCharArr = jsonSample1K.toCharArray()
-
-val jsonSample1KArr = jsonSample1KCharArr.toTypedArray()

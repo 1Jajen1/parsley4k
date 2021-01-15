@@ -1,4 +1,9 @@
 rootProject.name = 'parsley'
 
-include ':core'
+include ':api'
+include ':shared-api'
+include ':generic'
+include ':string'
+include ':compiler'
+include ':shared-compiler'
 include ':benchmarks'

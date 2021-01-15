@@ -9,10 +9,28 @@ repositories {
 }
 
 kotlin {
+    targets.all {
+        compilations.all {
+            kotlinOptions {
+                freeCompilerArgs += '-Xno-param-assertions'
+            }
+        }
+    }
+    targets.jvm.compilations.all {
+        kotlinOptions {
+            jvmTarget = "1.8"
+        }
+    }
     sourceSets {
         commonMain {
             dependencies {
-                implementation project(":core")
+                // Benchmark generic parsers
+                implementation project(":generic")
+                // Benchmark string parsers
+                implementation project(":string")
+                // Benchmark parts of shared-compiler
+                implementation project(":shared-compiler")
+
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
                 implementation "org.jetbrains.kotlinx:kotlinx.benchmark.runtime:$kotlin_benchmark_version"
                 implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlin_serialization_version"
@@ -32,5 +50,16 @@ benchmark {
     targets {
         register("jvm")
         // register("js")
+    }
+    configurations {
+        collections {
+            include("IntMap")
+        }
+        comparisons {
+            include("JsonBench")
+        }
+        instructions {
+            include("MapVsApply")
+        }
     }
 }

@@ -200,8 +200,7 @@ fun <E> Method<Char, E>.replaceMethod() {
             }
             el is SingleN_ -> {
                 removeAt(curr)
-                // This is sadly necessary because otherwise the cast from [Object to [Character fails...
-                val arr = el.fArr.toList().toTypedArray().toCharArray()
+                val arr = CharArray(el.fArr.size) { el.fArr[it] }
                 add(curr, MatchString_(arr))
             }
             el is SingleMany -> {

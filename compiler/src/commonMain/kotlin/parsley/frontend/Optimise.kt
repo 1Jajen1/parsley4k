@@ -219,4 +219,4 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
         }
 }
 
-private fun <A, B, C> ((A) -> B).compose(g: (C) -> A): (C) -> B = { c -> this(g(c)) }
+private inline fun <A, B, C> ((A) -> B).compose(crossinline g: (C) -> A): (C) -> B = { c -> this(g(c)) }

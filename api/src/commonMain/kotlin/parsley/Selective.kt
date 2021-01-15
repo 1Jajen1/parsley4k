@@ -26,8 +26,8 @@ fun <I, E> Parser<I, E, Boolean>.onTrue(p: Parser<I, E, Unit>): Parser<I, E, Uni
 fun <I, E> Parser<I, E, Boolean>.onFalse(p: Parser<I, E, Unit>): Parser<I, E, Unit> =
     map { it.not() }.onTrue(p)
 
-fun <I, E, A> Parser<I, E, A>.filter(f: (A) -> Boolean): Parser<I, E, A> =
+inline fun <I, E, A> Parser<I, E, A>.filter(crossinline f: (A) -> Boolean): Parser<I, E, A> =
     filterMap { a -> if (f(a)) a else null }
 
-fun <I, E, A, B : Any> Parser<I, E, A>.filterMap(f: (A) -> B?): Parser<I, E, B> =
+inline fun <I, E, A, B : Any> Parser<I, E, A>.filterMap(crossinline f: (A) -> B?): Parser<I, E, B> =
     map { a -> f(a)?.let { Either.right(it) } ?: Either.left(Unit) }.select(Parser.empty())

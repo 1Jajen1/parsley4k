@@ -18,5 +18,5 @@ fun <I, E, A, B> Parser<I, E, A>.followedBy(p: Parser<I, E, B>): Parser<I, E, B>
 fun <I, E, A, B> Parser<I, E, A>.followedByDiscard(p: Parser<I, E, B>): Parser<I, E, A> =
     Parser(ApL(parserF, p.parserF))
 
-fun <I, E, A, B, C> Parser<I, E, A>.mapTo(p: Parser<I, E, B>, f: (A, B) -> C): Parser<I, E, C> =
+inline fun <I, E, A, B, C> Parser<I, E, A>.mapTo(p: Parser<I, E, B>, crossinline f: (A, B) -> C): Parser<I, E, C> =
     map { a -> { b: B -> f(a, b) } }.ap(p)

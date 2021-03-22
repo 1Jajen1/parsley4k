@@ -41,7 +41,7 @@ class Many<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     }
 
     override fun toString(): String = "Many($to)"
-}
+    }
 
 class Many_<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: AbstractStackMachine<I, E>) {
@@ -131,4 +131,20 @@ class SingleMany_<I, E>(val i: I) : Instruction<I, E> {
     }
 
     override fun toString(): String = "SingleMany_"
+}
+
+// ########## Raw input
+class PushRawInput<I, E> : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        if (machine.status == ParseStatus.Err) {
+            machine.fail()
+        } else {
+            machine.handlerStack.drop()
+            val start = machine.inputCheckStack.pop()
+            val end = machine.inputOffset
+            machine.push(machine.slice(start, end).toList())
+        }
+    }
+
+    override fun toString(): String = "PushRawInput"
 }

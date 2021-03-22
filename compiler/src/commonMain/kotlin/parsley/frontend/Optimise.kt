@@ -215,6 +215,10 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     else -> Many(pInner)
                 }
             }
+            is RawInput<I, E, Any?> -> {
+                // TODO There are cases here
+                p
+            }
             else -> p
         }
 }

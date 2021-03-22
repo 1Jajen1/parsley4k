@@ -128,8 +128,19 @@ class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
  *   - If we have a fallback we need to generate a Unconsume(n: Int) instruction that moves the input offset back n steps
  *   - If we jump into Many with discard the consumed input does not matter
  *   - If we jump into Many without discard we cannot consume in the JumpTable
+ * - Convert Alt(Single, Single) into Satisfy, and similarly Alt(Single, Satisfy) and Alt(Satisfy, Satisfy) if their
+ *  respective accept/reject tables are small-ish
  * Char/String:
  * HARD:
+ * - Automatically float out a part of an alt if it is exceedingly faster than others:
+ *  - This needs some sort of cost center calculation:
+ *   - Most single instructions have a fixed cost, sequences of instructions have additive cost
+ *   - Many and Many_ are very expensive (although Many_ is still far cheaper than Many)
+ *   - PushHandler, InputCheck are expensive
+ *  - Problem: This does not really work with non discard since a) we need to keep track where we push and b)
+ *   pushing usually involves map/ap/select and thus has an unknown cost
+ *  - Assume we have a many loop: Many(Alt(b1, b2)) and b1 is far cheaper than b2 than we may benefit from rewriting
+ *   this to Alt(Many(b1), Many(Alt(b1, b2)))
  * - Generate sets of accepted and rejected chars from (Char) -> Boolean
  *  - This can then be used by jump tables and/or be used to generate fused satisfy instructions
  *   - Alt(Satisfy, Single) may be collapsed to just Satisfy with no loss of information and a fast CharSet lookup
@@ -149,6 +160,7 @@ class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
  *  - Investigate if that causes any problems with optimization...
  * - Split into modules!
  * TODO:
+ * - Investigate JumpGoodCatch vs JumpGood, Catch
  * - Add Byte parser
  * - Benchmark Generic vs Byte vs Char
  * - Optimise compilation pipeline:
@@ -159,7 +171,7 @@ class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
  *  - Setup ci and benchmark comparisons
  * - Provide a nicer api
  *  - Investigate dsl like betterParser although I do believe that is over the top
- *  - recursive could maybe be just lazy
+ *  - recursive could maybe be just lazy. In fact I can probably add overloaded constructors accepting both
  * - Error messages
  *  - AFTER benchmark pipeline is set up to spot regressions early
  * - Streaming parsing
@@ -173,3 +185,22 @@ class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
  *   - Stateful methods like SatisfyMany may need to store their state in a local var or reset the input they consumed and state they changed
  */
 
+/**
+ * IDEA:
+ *
+ * Add a JumpTable that builds tries and a many version that specialises looping over that
+ * JsonString could look like:
+ *  - " -> end
+ *  - \
+ *      - " -> "\\\""
+ *      - \ -> "\\\\"
+ *      - n -> "\\\n"
+ *      - ...
+ *
+ * Patterns to optimise:
+ *  - Many(Alt) where Alt is only Single/Satisfy
+ *  - ConcatString(Many(Alt)) contains branches ApR(ApR(Single(a), Single(b)), Pure(ab))
+ *
+ *
+ *
+ */

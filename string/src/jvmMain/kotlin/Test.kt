@@ -10,6 +10,7 @@ import parsley.followedBy
 import parsley.followedByDiscard
 import parsley.many
 import parsley.map
+import parsley.rawString
 import parsley.mapTo
 import parsley.orNull
 import parsley.pure
@@ -22,12 +23,10 @@ import parsley.single
 import parsley.string
 
 fun main() {
-    // Thread.sleep(5_000)
     compiledJsonParser.parse(jsonSample1K.toCharArray())
         .also {
             println(it)
         }
-
 }
 
 sealed class Json {
@@ -56,40 +55,18 @@ sealed class Json {
     }
 }
 
-@JvmName("parserConcatString")
-private fun <E> Parser<Char, E, List<Char>>.concatString(): Parser<Char, E, String> {
-    return map { it.toCharArray().concatToString() }
-}
-
-private fun List<Any>.concatString(): String {
-    val sb = StringBuilder()
-    forEach { sb.append(it) }
-    return sb.toString()
-}
-
 val jsonRootParser = Parser.run {
     val jsonNull = string("null").followedBy(pure(Json.JsonNull))
     val jsonBool = string("true").followedBy(pure(Json.JsonBool(true)))
         .alt(string("false").followedBy(pure(Json.JsonBool(false))))
     val digit: Parser<Char, Nothing, Char> = satisfy { c: Char -> c in '0'..'9' }
-    val sign = char('-').orNull()
-    val jsonNumber = sign.mapTo(digit.many().filter { it.isNotEmpty() }) { s, d ->
-        if (s == null) d
-        else "$s$d"
-    }.mapTo(char('.').followedBy(digit.many()).orNull()) { str, d ->
-        if (d == null) str
-        else "$str.$d"
-    }.map { Json.JsonNumber(it.toDouble()) }
+    val sign = char('-').alt(char('+')).orNull()
+    val jsonNumber =
+        sign.followedBy(digit.many().filter { it.isNotEmpty() }).followedBy(char('.').followedBy(digit.many()).orNull())
+            .rawString()
+            .map { Json.JsonNumber(it.toDouble()) }
     val unescapedChar = satisfy { c: Char -> c != '\\' && c != '"' }
-    val specialChar = choice(
-        char('"').followedBy(pure("\\\"")),
-        char('\\').followedBy(pure("\\\\")),
-        char('n').followedBy(pure("\\\n")),
-        char('r').followedBy(pure("\\\r")),
-        char('t').followedBy(pure("\\\t")),
-        char('b').followedBy(pure("\\\b")),
-        char('f').followedBy(pure("\\\\f")),
-    )
+    val specialChar = satisfy { c: Char -> c == '"' || c == '\\' || c == 'n' || c == 'r' || c == 't' || c == 'b' || c == 'f' }
     val unescapedString = unescapedChar.many()
     val jsonString = char('"')
         .followedBy(
@@ -97,7 +74,7 @@ val jsonRootParser = Parser.run {
                 .followedByDiscard(char('"')).attempt()
                 .alt(
                     unescapedString.filter { it.isNotEmpty() }.alt(char('\\').followedBy(specialChar))
-                        .many().map { Json.JsonString(it.concatString()) }
+                        .many().rawString().map { Json.JsonString(it) }
                         .followedByDiscard(char('"'))
                 )
         )

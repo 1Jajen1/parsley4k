@@ -15,8 +15,10 @@ import parsley.backend.instructions.JumpTable
 import parsley.backend.instructions.Label
 import parsley.backend.instructions.Many_
 import parsley.backend.instructions.Map
+import parsley.backend.instructions.Pop
 import parsley.backend.instructions.Push
 import parsley.backend.instructions.PushHandler
+import parsley.backend.instructions.PushRawInput
 import parsley.backend.instructions.RecoverAttemptWith
 import parsley.backend.instructions.RecoverWith
 import parsley.backend.instructions.ResetOffset
@@ -41,6 +43,7 @@ import parsley.frontend.Many
 import parsley.frontend.NegLookAhead
 import parsley.frontend.ParserF
 import parsley.frontend.Pure
+import parsley.frontend.RawInput
 import parsley.frontend.Satisfy
 import parsley.frontend.Select
 import parsley.frontend.Single
@@ -140,6 +143,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                 }
                 if (p.pIfLeft is Empty) {
                     ctx += FailIfLeft()
+                    if (ctx.discard) ctx += Pop() // TODO
                 } else {
                     val rightLabel = ctx.mkLabel()
                     ctx += JumpIfRight(rightLabel)
@@ -176,6 +180,19 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                     }
                 }
             }
+            is RawInput<I, E, Any?> -> {
+                if (ctx.discard) {
+                    callRecursive(p.p)
+                } else {
+                    val handler = ctx.mkLabel()
+                    ctx += InputCheck(handler)
+                    ctx.withDiscard {
+                        callRecursive(p.p)
+                    }
+                    ctx += Label(handler)
+                    ctx += PushRawInput()
+                }
+            }
             else -> return false
         }
         return true
@@ -201,6 +218,8 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
                         callRecursive(fst)
                         ctx += Label(badLabel)
                         ctx += RecoverAttemptWith(p.right.unsafe<Pure<Any?>>().a)
+                        if (ctx.discard) ctx += Pop() // TODO
+                        else Unit
                     } else {
                         val skip = ctx.mkLabel()
                         val badLabel = ctx.mkLabel()
@@ -220,6 +239,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
                         ctx += JumpGood(skip)
                         ctx += Label(badLabel)
                         ctx += RecoverWith(p.right.unsafe<Pure<Any?>>().a)
+                        if (ctx.discard) ctx += Pop() // TODO
                         ctx += Label(skip)
                     } else {
                         val skip = ctx.mkLabel()
@@ -298,6 +318,10 @@ private fun <I, E> toJumpTable(
 
 // TODO Try to handle Alt as well. This would essentially be lifting the Alt up and then duplicating
 //  part of the underlying parser...
+/*
+ * Idea: Look for Ap/ApR/ApL(Alt(...), p) and collect jump table from Alt
+ *  Also look for special case Ap/ApR/ApL(Alt(..., Pure(x)), p) and also collect from p because there is a no-consume way to it
+ */
 private tailrec fun <I, E> ParserF<I, E, Any?>.findLeading(subs: IntMap<ParserF<I, E, Any?>>): Set<I> =
     when (this) {
         is Satisfy<*> -> accepts.unsafe()

@@ -2,6 +2,7 @@ package parsley
 
 import parsley.frontend.CharListToString
 import parsley.frontend.Many
+import parsley.frontend.RawInput
 import parsley.frontend.Satisfy
 
 fun Parser.Companion.char(c: Char): Parser<Char, Nothing, Char> = single(c)
@@ -13,6 +14,9 @@ fun Parser.Companion.string(str: String): Parser<Char, Nothing, String> =
 
 fun <E> Parser<Char, E, Char>.many(): Parser<Char, E, String> =
     Parser(CharListToString(Many(parserF)))
+
+fun <E> Parser<Char, E, Any?>.rawString(): Parser<Char, E, String> =
+    Parser(CharListToString(RawInput(parserF)))
 
 fun Parser.Companion.satisfy(p: CharPredicate): Parser<Char, Nothing, Char> = Parser(Satisfy(p))
 

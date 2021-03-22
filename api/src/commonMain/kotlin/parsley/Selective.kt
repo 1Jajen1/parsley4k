@@ -21,7 +21,7 @@ fun <I, E, A> Parser<I, E, Boolean>.ifElse(onTrue: Parser<I, E, A>, onFalse: Par
     )
 
 fun <I, E> Parser<I, E, Boolean>.onTrue(p: Parser<I, E, Unit>): Parser<I, E, Unit> =
-    toEither().select(p.map { {} })
+    toEither().select(p.followedBy(Parser.pure {}))
 
 fun <I, E> Parser<I, E, Boolean>.onFalse(p: Parser<I, E, Unit>): Parser<I, E, Unit> =
     map { it.not() }.onTrue(p)

@@ -59,6 +59,7 @@ abstract class AbstractStackMachine<I, E>(val instructions: Array<Instruction<I,
     abstract fun hasMore(): Boolean
     abstract fun hasMore(n: Int): Boolean
     abstract fun take(): I
+    abstract fun slice(start: Int, end: Int): Array<I>
     fun consume(): Int = inputOffset++
     fun consume(n: Int) {
         inputOffset += n

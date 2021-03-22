@@ -7,7 +7,7 @@ import parsley.backend.ParseStatus
 fun <I, E, A> Parser<I, E, A>.compile(): CompiledGenericParser<I, E, A> =
     CompiledGenericParser(
         parserF.compile().toTypedArray()
-            //.also { println(it.withIndex().map { (i, v) -> i to v }) }
+        //.also { println(it.withIndex().map { (i, v) -> i to v }) }
     )
 
 class CompiledGenericParser<I, E, A>(val instr: Array<Instruction<I, E>>) {
@@ -29,4 +29,6 @@ internal class GenericStackMachine<I, E> internal constructor(instr: Array<Instr
     override fun take(): I = input[inputOffset]
     override fun hasMore(n: Int): Boolean = inputOffset < input.size - (n - 1)
     override fun needInput() = fail()
+    override fun slice(start: Int, end: Int): Array<I> =
+        input.slice(start..end).toTypedArray<Any?>().unsafe()
 }

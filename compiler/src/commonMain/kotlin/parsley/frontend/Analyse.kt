@@ -113,6 +113,9 @@ class DefaultLetBoundStep<I, E> : LetBoundStep<I, E> {
                 is Many<I, E, Any?> -> {
                     callRecursive(nS to p.p)
                 }
+                is RawInput<I, E, Any?> -> {
+                    callRecursive(nS to p.p)
+                }
                 else -> Unit
             }
         }
@@ -252,6 +255,9 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
                 }
                 is Many<I, E, Any?> -> {
                     Many(callRecursive(p.p))
+                }
+                is RawInput<I, E, Any?> -> {
+                    RawInput(callRecursive(p.p))
                 }
                 else -> p
             }

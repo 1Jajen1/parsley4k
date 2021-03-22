@@ -5,6 +5,7 @@ import parsley.frontend.Lazy
 import parsley.frontend.LookAhead
 import parsley.frontend.NegLookAhead
 import parsley.frontend.ParserF
+import parsley.frontend.RawInput
 import parsley.frontend.Satisfy
 import parsley.frontend.Single
 
@@ -45,3 +46,5 @@ inline fun <reified I> Parser.Companion.chunk(vararg els: I): Parser<I, Nothing,
     els.reversed().fold(Parser.pure(emptyArray<I>()).unsafe<Parser<I, Nothing, Array<I>>>()) { acc, c ->
         Parser.single(c).followedBy(acc)
     }.followedBy(Parser.pure(els).unsafe())
+
+fun <I, E> Parser<I, E, Any?>.rawInput(): Parser<I, E, List<I>> = Parser(RawInput(parserF))

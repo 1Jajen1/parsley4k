@@ -7,6 +7,7 @@ import parsley.backend.CodeGenStep
 import parsley.backend.Instruction
 import parsley.backend.MatchString_
 import parsley.backend.ParseStatus
+import parsley.backend.PushRawString
 import parsley.backend.SatisfyChar
 import parsley.backend.SatisfyCharMany
 import parsley.backend.SatisfyCharMany_
@@ -20,6 +21,7 @@ import parsley.backend.SingleCharMap
 import parsley.backend.SingleChar_
 import parsley.backend.StringToCharList
 import parsley.backend.instructions.JumpTable
+import parsley.backend.instructions.PushRawInput
 import parsley.backend.instructions.Satisfy
 import parsley.backend.instructions.SatisfyMany
 import parsley.backend.instructions.SatisfyMany_
@@ -107,7 +109,7 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
         ).addOptimiseStep { s, l -> replaceInstructions(s, l) }
     return CompiledStringParser(
         parserF.compile(settings).toTypedArray()
-            //.also { println(it.withIndex().map { (i, v) -> i to v }) }
+            // .also { println(it.withIndex().map { (i, v) -> i to v }) }
     )
 }
 
@@ -130,6 +132,8 @@ internal class StringStackMachine<E> internal constructor(instr: Array<Instructi
     override fun take(): Char = input[inputOffset]
     override fun needInput() = fail()
     override fun hasMore(n: Int): Boolean = inputOffset < input.size - (n - 1)
+    override fun slice(start: Int, end: Int): Array<Char> =
+        input.slice(start, end).toTypedArray()
 
     fun takeP(): Char = input[inputOffset]
     fun takeP(start: Int, end: Int): CharArray = input.slice(start, end)
@@ -200,7 +204,7 @@ fun <E> Method<Char, E>.replaceMethod() {
             }
             el is SingleN_ -> {
                 removeAt(curr)
-                val arr = CharArray(el.fArr.size) { el.fArr[it] }
+                val arr = el.fArr.toList().toCharArray()
                 add(curr, MatchString_(arr))
             }
             el is SingleMany -> {
@@ -217,6 +221,15 @@ fun <E> Method<Char, E>.replaceMethod() {
             el is SingleMany_ -> {
                 removeAt(curr)
                 add(curr, SingleCharMany_(el.i))
+            }
+            el is PushRawInput -> {
+                removeAt(curr)
+                add(curr, PushRawString())
+                if (get(curr + 1) !is parsley.backend.CharListToString) {
+                    add(curr + 1, StringToCharList())
+                } else {
+                    removeAt(curr + 1)
+                }
             }
         }
         curr++

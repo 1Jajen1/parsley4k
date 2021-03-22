@@ -83,3 +83,7 @@ class Let(val recursive: Boolean, val sub: Int) : ParserF<Nothing, Nothing, Noth
 class Many<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<A>> {
     override fun toString(): String = "Many($p)"
 }
+
+class RawInput<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<I>> {
+    override fun toString(): String = "RawInput($p)"
+}

@@ -3,11 +3,10 @@ package parsley.backend
 import parsley.StringStackMachine
 import parsley.unsafe
 
-class PushRawString<E> : Instruction<Char, E> {
+class PushStringOf<E> : Instruction<Char, E> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
         if (machine.status == ParseStatus.Err) {
-            machine.inputCheckStack.drop()
             machine.fail()
         } else {
             machine.handlerStack.drop()
@@ -17,5 +16,5 @@ class PushRawString<E> : Instruction<Char, E> {
         }
     }
 
-    override fun toString(): String = "PushRawString"
+    override fun toString(): String = "PushStringOf"
 }

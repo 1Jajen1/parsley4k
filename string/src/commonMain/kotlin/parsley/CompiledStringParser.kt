@@ -7,7 +7,7 @@ import parsley.backend.CodeGenStep
 import parsley.backend.Instruction
 import parsley.backend.MatchString_
 import parsley.backend.ParseStatus
-import parsley.backend.PushRawString
+import parsley.backend.PushStringOf
 import parsley.backend.SatisfyChar
 import parsley.backend.SatisfyCharMany
 import parsley.backend.SatisfyCharMany_
@@ -21,7 +21,7 @@ import parsley.backend.SingleCharMap
 import parsley.backend.SingleChar_
 import parsley.backend.StringToCharList
 import parsley.backend.instructions.JumpTable
-import parsley.backend.instructions.PushRawInput
+import parsley.backend.instructions.PushChunkOf
 import parsley.backend.instructions.Satisfy
 import parsley.backend.instructions.SatisfyMany
 import parsley.backend.instructions.SatisfyMany_
@@ -222,9 +222,9 @@ fun <E> Method<Char, E>.replaceMethod() {
                 removeAt(curr)
                 add(curr, SingleCharMany_(el.i))
             }
-            el is PushRawInput -> {
+            el is PushChunkOf -> {
                 removeAt(curr)
-                add(curr, PushRawString())
+                add(curr, PushStringOf())
                 if (get(curr + 1) !is parsley.backend.CharListToString) {
                     add(curr + 1, StringToCharList())
                 } else {

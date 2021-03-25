@@ -1,25 +1,22 @@
 import parsley.Parser
 import parsley.attempt
-import parsley.chunk
 import parsley.alt
 import parsley.char
 import parsley.choice
-import parsley.collections.IntMap
 import parsley.filter
 import parsley.followedBy
 import parsley.followedByDiscard
 import parsley.many
 import parsley.map
-import parsley.rawString
-import parsley.mapTo
+import parsley.zip
+import parsley.stringOf
 import parsley.orNull
 import parsley.pure
 import parsley.void
 import parsley.compile
-import parsley.lookAhead
+import parsley.orElse
 import parsley.recursive
 import parsley.satisfy
-import parsley.single
 import parsley.string
 
 fun main() {
@@ -63,10 +60,11 @@ val jsonRootParser = Parser.run {
     val sign = char('-').alt(char('+')).orNull()
     val jsonNumber =
         sign.followedBy(digit.many().filter { it.isNotEmpty() }).followedBy(char('.').followedBy(digit.many()).orNull())
-            .rawString()
+            .stringOf()
             .map { Json.JsonNumber(it.toDouble()) }
     val unescapedChar = satisfy { c: Char -> c != '\\' && c != '"' }
     val specialChar = satisfy { c: Char -> c == '"' || c == '\\' || c == 'n' || c == 'r' || c == 't' || c == 'b' || c == 'f' }
+    /*
     val unescapedString = unescapedChar.many()
     val jsonString = char('"')
         .followedBy(
@@ -74,10 +72,17 @@ val jsonRootParser = Parser.run {
                 .followedByDiscard(char('"')).attempt()
                 .alt(
                     unescapedString.filter { it.isNotEmpty() }.alt(char('\\').followedBy(specialChar))
-                        .many().rawString().map { Json.JsonString(it) }
+                        .many().stringOf().map { Json.JsonString(it) }
                         .followedByDiscard(char('"'))
                 )
         )
+     */
+    val jsonString = char('"')
+        .followedBy(
+            unescapedChar.orElse(char('\\').followedBy(specialChar)).many()
+                .stringOf().map { Json.JsonString(it) }
+        )
+        .followedByDiscard(char('"'))
     val whitespace = satisfy { c: Char -> c == ' ' || c == '\n' || c == '\t' || c == '\r' }
         .many().void()
 
@@ -101,7 +106,7 @@ val jsonRootParser = Parser.run {
         .followedBy(
             choice(
                 char(']').followedBy(pure(Json.JsonArray(emptyList()))),
-                jsonValueNoWhitespace.mapTo(
+                jsonValueNoWhitespace.zip(
                     char(',').followedBy(jsonValue).many()
                 ) { head, tail ->
                     val xs = tail.toMutableList().apply { add(0, head) }
@@ -111,7 +116,7 @@ val jsonRootParser = Parser.run {
         )
 
     val keyValuePairNoWhitespace =
-        jsonString.mapTo(whitespace.followedBy(char(':')).followedBy(jsonValue)) { k, v -> k to v }
+        jsonString.zip(whitespace.followedBy(char(':')).followedBy(jsonValue)) { k, v -> k to v }
     val keyValuePair = whitespace.followedBy(keyValuePairNoWhitespace)
 
     jsonObject = char('{')
@@ -119,7 +124,7 @@ val jsonRootParser = Parser.run {
         .followedBy(
             choice(
                 char('}').followedBy(pure(Json.JsonObject(emptyMap()))),
-                keyValuePairNoWhitespace.mapTo(
+                keyValuePairNoWhitespace.zip(
                     char(',').followedBy(keyValuePair).many()
                 ) { head, tail ->
                     val map = mutableMapOf<Json.JsonString, Json>().apply {

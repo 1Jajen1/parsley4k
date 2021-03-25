@@ -17,8 +17,8 @@ import parsley.backend.instructions.Many_
 import parsley.backend.instructions.Map
 import parsley.backend.instructions.Pop
 import parsley.backend.instructions.Push
+import parsley.backend.instructions.PushChunkOf
 import parsley.backend.instructions.PushHandler
-import parsley.backend.instructions.PushRawInput
 import parsley.backend.instructions.RecoverAttemptWith
 import parsley.backend.instructions.RecoverWith
 import parsley.backend.instructions.ResetOffset
@@ -36,6 +36,7 @@ import parsley.frontend.Ap
 import parsley.frontend.ApL
 import parsley.frontend.ApR
 import parsley.frontend.Attempt
+import parsley.frontend.ChunkOf
 import parsley.frontend.Empty
 import parsley.frontend.Let
 import parsley.frontend.LookAhead
@@ -43,7 +44,6 @@ import parsley.frontend.Many
 import parsley.frontend.NegLookAhead
 import parsley.frontend.ParserF
 import parsley.frontend.Pure
-import parsley.frontend.RawInput
 import parsley.frontend.Satisfy
 import parsley.frontend.Select
 import parsley.frontend.Single
@@ -180,7 +180,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                     }
                 }
             }
-            is RawInput<I, E, Any?> -> {
+            is ChunkOf<I, E, Any?> -> {
                 if (ctx.discard) {
                     callRecursive(p.p)
                 } else {
@@ -190,7 +190,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                         callRecursive(p.p)
                     }
                     ctx += Label(handler)
-                    ctx += PushRawInput()
+                    ctx += PushChunkOf()
                 }
             }
             else -> return false
@@ -324,7 +324,7 @@ private fun <I, E> toJumpTable(
  */
 private tailrec fun <I, E> ParserF<I, E, Any?>.findLeading(subs: IntMap<ParserF<I, E, Any?>>): Set<I> =
     when (this) {
-        is Satisfy<*> -> accepts.unsafe()
+        is Satisfy<*> -> emptySet()// accepts.unsafe()
         is Single<*> -> setOf(i.unsafe())
         is Attempt -> p.findLeading(subs)
         is Ap<I, E, *, Any?> -> {

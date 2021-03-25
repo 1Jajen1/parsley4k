@@ -8,7 +8,7 @@ import parsley.followedBy
 import parsley.followedByDiscard
 import parsley.many
 import parsley.map
-import parsley.mapTo
+import parsley.zip
 import parsley.orNull
 import parsley.pure
 import parsley.void
@@ -70,10 +70,10 @@ val jsonRootParser = Parser.run {
         .alt(string("false").followedBy(pure(Json.JsonBool(false))))
     val digit: Parser<Char, Nothing, Char> = satisfy { c: Char -> c in '0'..'9' }
     val sign = char('-').orNull()
-    val jsonNumber = sign.mapTo(digit.many().concatString().filter { it.isNotEmpty() }) { s, d ->
+    val jsonNumber = sign.zip(digit.many().concatString().filter { it.isNotEmpty() }) { s, d ->
         if (s == null) d
         else "$s$d"
-    }.mapTo(char('.').followedBy(digit.many().concatString()).orNull()) { str, d ->
+    }.zip(char('.').followedBy(digit.many().concatString()).orNull()) { str, d ->
         if (d == null) str
         else "$str.$d"
     }.map { Json.JsonNumber(it.toDouble()) }
@@ -125,7 +125,7 @@ val jsonRootParser = Parser.run {
         .followedBy(
             choice(
                 char(']').followedBy(pure(Json.JsonArray(emptyList()))),
-                jsonValueNoWhitespace.mapTo(
+                jsonValueNoWhitespace.zip(
                     char(',').followedBy(jsonValue).many()
                 ) { head, tail ->
                     val xs = tail.toMutableList().apply { add(0, head) }
@@ -135,7 +135,7 @@ val jsonRootParser = Parser.run {
         )
 
     val keyValuePairNoWhitespace =
-        jsonString.mapTo(whitespace.followedBy(char(':')).followedBy(jsonValue)) { k, v -> k to v }
+        jsonString.zip(whitespace.followedBy(char(':')).followedBy(jsonValue)) { k, v -> k to v }
     val keyValuePair = whitespace.followedBy(keyValuePairNoWhitespace)
 
     jsonObject = char('{')
@@ -143,7 +143,7 @@ val jsonRootParser = Parser.run {
         .followedBy(
             choice(
                 char('}').followedBy(pure(Json.JsonObject(emptyMap()))),
-                keyValuePairNoWhitespace.mapTo(
+                keyValuePairNoWhitespace.zip(
                     char(',').followedBy(keyValuePair).many()
                 ) { head, tail ->
                     val map = mutableMapOf<Json.JsonString, Json>().apply {

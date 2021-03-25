@@ -215,9 +215,11 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     else -> Many(pInner)
                 }
             }
-            is RawInput<I, E, Any?> -> {
-                // TODO There are cases here
-                p
+            is ChunkOf<I, E, Any?> -> {
+                when (val pInner = callRecursive(p.p)) {
+                    is Empty -> Empty
+                    else -> ChunkOf(pInner)
+                }
             }
             else -> p
         }

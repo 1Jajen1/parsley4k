@@ -16,7 +16,7 @@ import parsley.pure
 import parsley.string
 import parsley.void
 import parsley.compile
-import parsley.rawString
+import parsley.stringOf
 import parsley.recursive
 import parsley.satisfy
 import parsley.zip
@@ -29,7 +29,7 @@ val jsonRootParser = Parser.run {
     val sign = char('-').alt(char('+')).orNull()
     val jsonNumber =
         sign.followedBy(digit.many().filter { it.isNotEmpty() }).followedBy(char('.').followedBy(digit.many()).orNull())
-            .rawString()
+            .stringOf()
             .map { Json.JsonNumber(it.toDouble()) }
     val unescapedChar = satisfy { c: Char -> c != '\\' && c != '"' }
     val specialChar = satisfy { c: Char -> c == '"' || c == '\\' || c == 'n' || c == 'r' || c == 't' || c == 'b' || c == 'f' }
@@ -40,7 +40,7 @@ val jsonRootParser = Parser.run {
                 .followedByDiscard(char('"')).attempt()
                 .alt(
                     unescapedString.filter { it.isNotEmpty() }.alt(char('\\').followedBy(specialChar))
-                        .many().rawString().map { Json.JsonString(it) }
+                        .many().stringOf().map { Json.JsonString(it) }
                         .followedByDiscard(char('"'))
                 )
         )

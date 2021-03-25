@@ -134,7 +134,7 @@ class SingleMany_<I, E>(val i: I) : Instruction<I, E> {
 }
 
 // ########## Raw input
-class PushRawInput<I, E> : Instruction<I, E> {
+class PushChunkOf<I, E> : Instruction<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.status == ParseStatus.Err) {
             machine.fail()
@@ -146,5 +146,5 @@ class PushRawInput<I, E> : Instruction<I, E> {
         }
     }
 
-    override fun toString(): String = "PushRawInput"
+    override fun toString(): String = "PushChunkOf"
 }

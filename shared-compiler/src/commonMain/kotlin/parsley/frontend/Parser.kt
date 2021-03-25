@@ -84,6 +84,6 @@ class Many<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<A>
     override fun toString(): String = "Many($p)"
 }
 
-class RawInput<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<I>> {
+class ChunkOf<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<I>> {
     override fun toString(): String = "RawInput($p)"
 }

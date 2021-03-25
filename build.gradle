@@ -13,6 +13,7 @@ buildscript {
             url "https://plugins.gradle.org/m2/"
         }
         maven { url 'https://dl.bintray.com/kotlin/kotlinx' }
+        maven { url 'https://dl.bintray.com/jannis/kotlin-pretty' }
     }
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
@@ -28,6 +29,8 @@ subprojects {
     repositories {
         jcenter()
         mavenCentral()
+
+        maven { url 'https://dl.bintray.com/jannis/kotlin-pretty' }
     }
 
     apply plugin: 'kotlin-multiplatform'

@@ -12,10 +12,12 @@ fun <I, E, A> Parser<I, E, A>.orElse(p: Parser<I, E, A>): Parser<I, E, A> = Pars
 
 fun <I, E, A> Parser<I, E, A>.many(): Parser<I, E, List<A>> = Parser(Many(parserF))
 
+fun <I, E, A> Parser<I, E, A>.some(): Parser<I, E, Pair<A, List<A>>> = this.zip(this.many())
+
 fun <I, E, A> Parser.Companion.choice(
     p1: Parser<I, E, A>,
-    vararg reset: Parser<I, E, A>
-): Parser<I, E, A> = reset.fold(p1) { acc, v ->
+    vararg rest: Parser<I, E, A>
+): Parser<I, E, A> = rest.fold(p1) { acc, v ->
     acc.alt(v)
 }
 

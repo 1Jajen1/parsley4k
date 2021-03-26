@@ -2,11 +2,6 @@ apply from: rootProject.file("gradle/targets.gradle")
 
 apply plugin: 'com.jakewharton.confundus'
 
-repositories {
-
-    maven { url 'https://dl.bintray.com/jannis/kotlin-pretty' }
-}
-
 kotlin {
     targets.all {
         compilations.all {
@@ -23,7 +18,6 @@ kotlin {
     sourceSets {
         all {
             dependencies {
-                implementation "kotlin-pretty:kotlin-pretty:0.6.0"
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
                 api("org.jetbrains.kotlinx:kotlinx-collections-immutable:$kotlinx_immutable_version")
                 api project(':shared-compiler')

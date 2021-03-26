@@ -28,7 +28,9 @@ val jsonRootParser = Parser.run {
     val digit: Parser<Char, Nothing, Char> = satisfy { c: Char -> c in '0'..'9' }
     val sign = char('-').alt(char('+')).orNull()
     val jsonNumber =
-        sign.followedBy(digit.many().filter { it.isNotEmpty() }).followedBy(char('.').followedBy(digit.many()).orNull())
+        sign
+            .followedBy(digit).followedBy(digit.many())
+            .followedBy(char('.').followedBy(digit.many()).orNull())
             .stringOf()
             .map { Json.JsonNumber(it.toDouble()) }
     val unescapedChar = satisfy { c: Char -> c != '\\' && c != '"' }

@@ -1,6 +1,8 @@
 package parsley.frontend
 
 import parsley.Either
+import parsley.ErrorItem
+import parsley.ParseError
 import parsley.Predicate
 
 interface ParserF<out I, out E, out A>
@@ -36,13 +38,14 @@ class Select<out I, out E, A, out B>(
 // Matchers
 class Satisfy<I>(
     val match: Predicate<I>,
+    val expected: Set<ErrorItem<I>> = emptySet(),
     val accepts: Set<I> = emptySet(),
     val rejects: Set<I> = emptySet()
 ) : ParserF<I, Nothing, I> {
     override fun toString(): String = "Satisfy"
 }
 
-class Single<I>(val i: I) : ParserF<I, Nothing, I> {
+class Single<I>(val i: I, val expected: Set<ErrorItem<I>> = emptySet()) : ParserF<I, Nothing, I> {
     override fun toString(): String = "Single($i)"
 }
 
@@ -85,5 +88,14 @@ class Many<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<A>
 }
 
 class ChunkOf<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<I>> {
-    override fun toString(): String = "RawInput($p)"
+    override fun toString(): String = "ChunkOf($p)"
+}
+
+// Failure
+class Label<out I, out E, out A>(val label: String, val p: ParserF<I, E, A>) : ParserF<I, E, A> {
+    override fun toString(): String = "Label($label, $p)"
+}
+
+class Hide<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, A> {
+    override fun toString(): String = "Hide($p)"
 }

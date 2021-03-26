@@ -6,6 +6,8 @@ import parsley.frontend.LookAhead
 import parsley.frontend.NegLookAhead
 import parsley.frontend.ParserF
 import parsley.frontend.ChunkOf
+import parsley.frontend.Empty
+import parsley.frontend.Label
 import parsley.frontend.Satisfy
 import parsley.frontend.Single
 
@@ -37,10 +39,11 @@ fun <I, E, A> Parser.Companion.recursive(f: () -> Parser<I, E, A>): Parser<I, E,
     Parser(Lazy { f().parserF })
 
 // Input
-fun <I> Parser.Companion.satisfy(f: (I) -> Boolean): Parser<I, Nothing, I> =
-    Parser(Satisfy(f))
+fun <I> Parser.Companion.satisfy(expected: Set<ErrorItem<I>> = emptySet(), f: (I) -> Boolean): Parser<I, Nothing, I> =
+    Parser(Satisfy(f, expected))
 
-fun <I> Parser.Companion.single(i: I): Parser<I, Nothing, I> = Parser(Single(i))
+fun <I> Parser.Companion.single(i: I): Parser<I, Nothing, I> =
+    Parser(Single(i, setOf(ErrorItem.Tokens(i, emptyList()))))
 
 inline fun <reified I> Parser.Companion.chunk(vararg els: I): Parser<I, Nothing, Array<I>> =
     els.reversed().fold(Parser.pure(emptyArray<I>()).unsafe<Parser<I, Nothing, Array<I>>>()) { acc, c ->
@@ -48,3 +51,5 @@ inline fun <reified I> Parser.Companion.chunk(vararg els: I): Parser<I, Nothing,
     }.followedBy(Parser.pure(els).unsafe())
 
 fun <I, E> Parser<I, E, Any?>.chunkOf(): Parser<I, E, List<I>> = Parser(ChunkOf(parserF))
+
+fun <I, E, A> Parser<I, E, A>.label(str: String): Parser<I, E, A> = Parser(Label(str, parserF))

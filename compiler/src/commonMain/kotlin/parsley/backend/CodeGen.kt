@@ -35,7 +35,7 @@ fun <I, E> ParserF<I, E, Any?>.codeGen(
     // TODO This is utterly broken. Right now it does not account for if discardedSubParsers > 1 and if gen adds another one
     val proccessed = IntSet.empty()
     while (ctx.discardedSubParsers.isNotEmpty() && ctx.discardedSubParsers.size() != proccessed.size()) {
-        val (key, value) = ctx.discardedSubParsers.first()
+        val (key, value) = ctx.discardedSubParsers.find { k, _ -> k !in proccessed }
         proccessed.add(key)
         ctx.discard = true
         DeepRecursiveFunction<ParserF<I, E, Any?>, Unit> { p ->
@@ -47,6 +47,15 @@ fun <I, E> ParserF<I, E, Any?>.codeGen(
     }
 
     return Triple(main, sub, ctx.highestL)
+}
+
+private inline fun <V> IntMap<V>.find(f: (Int, V) -> Boolean): Pair<Int, V> {
+    val copy = copy()
+    while (true) {
+        val (k, v) = copy.first()
+        copy.remove(k)
+        if (f(k, v)) return k to v
+    }
 }
 
 class CodeGenContext<I, E>(

@@ -1,5 +1,8 @@
 package parsley.backend
 
+import parsley.ErrorItemT
+import parsley.ParseErrorT
+
 interface Instruction<I, E> {
     fun apply(machine: AbstractStackMachine<I, E>)
 }
@@ -13,4 +16,8 @@ interface Jumps {
 
 interface FuseMap<I, E> {
     fun fuse(f: (Any?) -> Any?): Instruction<I, E>
+}
+
+interface Errors<I> {
+    var error: ParseErrorT.Trivial<I>
 }

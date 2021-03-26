@@ -116,6 +116,9 @@ class DefaultLetBoundStep<I, E> : LetBoundStep<I, E> {
                 is ChunkOf<I, E, Any?> -> {
                     callRecursive(nS to p.p)
                 }
+                is Label -> {
+                    callRecursive(nS to p.p)
+                }
                 else -> Unit
             }
         }
@@ -259,6 +262,9 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
                 is ChunkOf<I, E, Any?> -> {
                     ChunkOf(callRecursive(p.p))
                 }
+                is Label -> {
+                    Label(p.label, callRecursive(p.p))
+                }
                 else -> p
             }
 
@@ -277,7 +283,7 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
 }
 
 fun <I, E, A> ParserF<I, E, A>.small(): Boolean = when (this) {
-    is Pure, is Satisfy<*>, is Single<*>, Empty -> true
+    is Pure, is Satisfy<*>, is Single<*>, Empty, is Label -> true
     is Ap<I, E, *, A> -> pF.small() && pA.small()
     is ApR<I, E, *, A> -> pA.small() && pB.small()
     is ApL<I, E, A, *> -> pA.small() && pB.small()

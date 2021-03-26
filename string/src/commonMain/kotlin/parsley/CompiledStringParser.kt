@@ -5,6 +5,8 @@ import parsley.backend.CharJumpTable
 import parsley.backend.CodeGenContext
 import parsley.backend.CodeGenStep
 import parsley.backend.Instruction
+import parsley.backend.MatchManyCharN_
+import parsley.backend.MatchManyChar_
 import parsley.backend.MatchString_
 import parsley.backend.ParseStatus
 import parsley.backend.PushStringOf
@@ -20,7 +22,10 @@ import parsley.backend.SingleCharMany_
 import parsley.backend.SingleCharMap
 import parsley.backend.SingleChar_
 import parsley.backend.StringToCharList
+import parsley.backend.convert
 import parsley.backend.instructions.JumpTable
+import parsley.backend.instructions.MatchManyN_
+import parsley.backend.instructions.MatchMany_
 import parsley.backend.instructions.PushChunkOf
 import parsley.backend.instructions.Satisfy
 import parsley.backend.instructions.SatisfyMany
@@ -83,7 +88,7 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
                                     accepted.add(c)
                                 else rejected.add(c)
                             }
-                            parsley.frontend.Satisfy(p.match.unsafe(), accepted, rejected)
+                            parsley.frontend.Satisfy(p.match.unsafe(), p.expected.unsafe(), accepted, rejected)
                         }
                         else -> p
                     }
@@ -114,12 +119,12 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
 }
 
 class CompiledStringParser<E, A>(val instr: Array<Instruction<Char, E>>) {
-    fun parse(input: CharArray): A? {
+    fun parse(input: CharArray): Either<ParseError<Char, E>, A> {
         val machine = StringStackMachine(instr)
         machine.input = input
         machine.execute()
-        return if (machine.status == ParseStatus.Ok) machine.pop().unsafe()
-        else null
+        return if (machine.status == ParseStatus.Ok) Either.Right(machine.pop().unsafe())
+        else Either.Left(machine.finalError)
     }
 }
 
@@ -130,7 +135,6 @@ internal class StringStackMachine<E> internal constructor(instr: Array<Instructi
 
     override fun hasMore(): Boolean = inputOffset < input.size
     override fun take(): Char = input[inputOffset]
-    override fun needInput() = fail()
     override fun hasMore(n: Int): Boolean = inputOffset < input.size - (n - 1)
     override fun slice(start: Int, end: Int): Array<Char> =
         input.slice(start, end).toTypedArray()
@@ -156,24 +160,34 @@ fun <E> Method<Char, E>.replaceMethod() {
                 removeAt(curr)
                 val map = IntMap.empty<Int>()
                 el.table.forEach { (k, v) -> map[k.toInt()] = v }
-                add(curr, CharJumpTable(map))
+                val table = CharJumpTable<E>(map)
+                table.error.expected = el.error.expected
+                add(curr, table)
             }
             // TODO Any or all here?
             el is SatisfyN_ && el.fArr.all { it is CharPredicate } -> {
                 removeAt(curr)
-                add(curr, SatisfyChars_(el.fArr.unsafe()))
+                val new = SatisfyChars_<E>(el.fArr.unsafe(), el.eArr)
+                new.error.expected = el.error.expected
+                add(curr, new)
             }
             el is Satisfy && el.f is CharPredicate -> {
                 removeAt(curr)
-                add(curr, SatisfyChar(el.f.unsafe()))
+                val new = SatisfyChar<E>(el.f.unsafe())
+                new.error.expected = el.error.expected
+                add(curr, new)
             }
             el is SatisfyMap && el.f is CharPredicate && el.g is CharFunc<Any?> -> {
                 removeAt(curr)
-                add(curr, SatisfyCharMap(el.f.unsafe(), el.g.unsafe()))
+                val new = SatisfyCharMap<E>(el.f.unsafe(), el.g.unsafe())
+                new.error.expected = el.error.expected
+                add(curr, new)
             }
             el is Satisfy_ && el.f is CharPredicate -> {
                 removeAt(curr)
-                add(curr, SatisfyChar_(el.f.unsafe()))
+                val new = SatisfyChar_<E>(el.f.unsafe())
+                new.error.expected = el.error.expected
+                add(curr, new)
             }
             el is SatisfyMany && el.f is CharPredicate -> {
                 removeAt(curr)
@@ -192,20 +206,28 @@ fun <E> Method<Char, E>.replaceMethod() {
             }
             el is Single -> {
                 removeAt(curr)
-                add(curr, SingleChar(el.i))
+                val new = SingleChar<E>(el.i)
+                new.error.expected = el.error.expected
+                add(curr, new)
             }
             el is SingleMap -> {
                 removeAt(curr)
-                add(curr, SingleCharMap(el.el, el.res))
+                val new = SingleCharMap<E>(el.el, el.res)
+                new.error.expected = el.error.expected
+                add(curr, new)
             }
             el is Single_ -> {
                 removeAt(curr)
-                add(curr, SingleChar_(el.i))
+                val new = SingleChar_<E>(el.i)
+                new.error.expected = el.error.expected
+                add(curr, new)
             }
             el is SingleN_ -> {
                 removeAt(curr)
                 val arr = el.fArr.toList().toCharArray()
-                add(curr, MatchString_(arr))
+                val new = MatchString_<E>(arr, el.eArr)
+                new.error.expected = el.error.expected
+                add(curr, new)
             }
             el is SingleMany -> {
                 removeAt(curr)
@@ -230,6 +252,14 @@ fun <E> Method<Char, E>.replaceMethod() {
                 } else {
                     removeAt(curr + 1)
                 }
+            }
+            el is MatchMany_ -> {
+                removeAt(curr)
+                add(curr, MatchManyChar_(el.path.convert()))
+            }
+            el is MatchManyN_ -> {
+                removeAt(curr)
+                add(curr, MatchManyCharN_(el.paths.convert()))
             }
         }
         curr++

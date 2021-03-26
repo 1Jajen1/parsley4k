@@ -2,6 +2,7 @@ package parsley.frontend
 
 import parsley.CompilerSettings
 import parsley.Either
+import parsley.ErrorItem
 import parsley.FrontendSettings
 import parsley.Predicate
 import parsley.unsafe
@@ -221,8 +222,37 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     else -> ChunkOf(pInner)
                 }
             }
+            is Label -> {
+                callRecursive(p.p.relabel(p.label))
+            }
             else -> p
         }
 }
+
+@OptIn(ExperimentalStdlibApi::class)
+fun <I, E> ParserF<I, E, Any?>.relabel(lbl: String): ParserF<I, E, Any?> =
+    DeepRecursiveFunction<ParserF<I, E, Any?>, ParserF<I, E, Any?>> { p ->
+        when (p) {
+            is Alt -> Alt(callRecursive(p.left), callRecursive(p.right))
+            is Satisfy<*> -> Satisfy<I>(
+                p.match.unsafe(),
+                setOf(ErrorItem.Label(lbl)),
+                p.accepts.unsafe(), p.rejects.unsafe()
+            )
+            is Single<*> -> Single<I>(
+                p.i.unsafe(),
+                setOf(ErrorItem.Label(lbl))
+            )
+            is Label -> callRecursive(p.p)
+            is Let -> TODO("???")
+            is ApR<I, E, *, Any?> -> ApR(callRecursive(p.pA), p.pB)
+            is ApL<I, E, Any?, *> -> ApL(callRecursive(p.pA), p.pB)
+            is Ap<I, E, *, Any?> ->
+                if (p.pF is Pure) Ap(p.pF, callRecursive(p.pA).unsafe())
+                else Ap(callRecursive(p.pF).unsafe(), p.pA)
+            is ChunkOf<I, E, Any?> -> ChunkOf(callRecursive(p.p))
+            else -> p
+        }
+    }(this)
 
 private inline fun <A, B, C> ((A) -> B).compose(crossinline g: (C) -> A): (C) -> B = { c -> this(g(c)) }

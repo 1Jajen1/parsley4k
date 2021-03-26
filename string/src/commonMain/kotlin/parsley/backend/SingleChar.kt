@@ -1,10 +1,12 @@
 package parsley.backend
 
+import parsley.CharTokensT
+import parsley.ParseErrorT
 import parsley.StringStackMachine
 import parsley.unsafe
 
 // TODO Add warning after compiling that this boxes
-class SingleChar<E>(val c: Char) : Instruction<Char, E> {
+class SingleChar<E>(val c: Char) : Instruction<Char, E>, Errors<Char> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
         if (machine.hasMore()) {
@@ -12,25 +14,39 @@ class SingleChar<E>(val c: Char) : Instruction<Char, E> {
             if (el == c) {
                 machine.consume()
                 machine.push(el)
-            } else machine.fail()
-        } else machine.needInput()
+            } else {
+                unexpected.head = el
+                machine.failWith(error)
+            }
+        } else machine.needInput(error.expected)
     }
 
     override fun toString(): String = "SingleChar($c)"
+
+    private var unexpected = CharTokensT(' ', charArrayOf())
+    override var error: ParseErrorT.Trivial<Char> =
+        ParseErrorT.Trivial(-1, unexpected, emptySet())
 }
 
-class SingleChar_<E>(val c: Char) : Instruction<Char, E> {
+class SingleChar_<E>(val c: Char) : Instruction<Char, E>, Errors<Char> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
         if (machine.hasMore()) {
             val el = machine.takeP()
             if (el == c) {
                 machine.consume()
-            } else machine.fail()
-        } else machine.needInput()
+            } else {
+                unexpected.head = el
+                machine.failWith(error)
+            }
+        } else machine.needInput(error.expected)
     }
 
     override fun toString(): String = "SingleChar_($c)"
+
+    private var unexpected = CharTokensT(' ', charArrayOf())
+    override var error: ParseErrorT.Trivial<Char> =
+        ParseErrorT.Trivial(-1, unexpected, emptySet())
 }
 
 class SingleCharMany<E>(val c: Char) : Instruction<Char, E> {
@@ -46,8 +62,6 @@ class SingleCharMany<E>(val c: Char) : Instruction<Char, E> {
                 return
             }
         }
-        // TODO
-        machine.needInput()
     }
 
     override fun toString(): String = "SingleCharMany($c)"
@@ -62,14 +76,12 @@ class SingleCharMany_<E>(val c: Char) : Instruction<Char, E> {
                 machine.consume()
             } else return
         }
-        // TODO
-        machine.needInput()
     }
 
     override fun toString(): String = "SingleCharMany_($c)"
 }
 
-class SingleCharMap<E>(val c: Char, val res: Any?) : Instruction<Char, E> {
+class SingleCharMap<E>(val c: Char, val res: Any?) : Instruction<Char, E>, Errors<Char> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
         if (machine.hasMore()) {
@@ -77,9 +89,16 @@ class SingleCharMap<E>(val c: Char, val res: Any?) : Instruction<Char, E> {
             if (el == c) {
                 machine.consume()
                 machine.push(res)
-            } else machine.fail()
-        } else machine.needInput()
+            } else {
+                unexpected.head = el
+                machine.failWith(error)
+            }
+        } else machine.needInput(error.expected)
     }
 
     override fun toString(): String = "SingleCharMap($c, $res)"
+
+    private var unexpected = CharTokensT(' ', charArrayOf())
+    override var error: ParseErrorT.Trivial<Char> =
+        ParseErrorT.Trivial(-1, unexpected, emptySet())
 }

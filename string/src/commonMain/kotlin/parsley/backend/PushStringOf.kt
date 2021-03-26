@@ -7,6 +7,7 @@ class PushStringOf<E> : Instruction<Char, E> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
         if (machine.status == ParseStatus.Err) {
+            machine.inputCheckStack.drop()
             machine.fail()
         } else {
             machine.handlerStack.drop()

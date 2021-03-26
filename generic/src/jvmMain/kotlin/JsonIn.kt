@@ -1,5 +1,6 @@
 // From https://raw.githubusercontent.com/h0tk3y/better-parse/master/benchmarks/src/commonMain/kotlin/JsonInput.kt
 val jsonSample1K = """[{
+                        "test": -1,
                         "_id": "5789f4e5688f478d31e213cb",
                         "index": 0,
                         "guid": "a601b360-938e-4326-8bd1-d78fd8c3d54b",

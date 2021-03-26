@@ -1,7 +1,11 @@
 package parsley.backend.instructions
 
+import parsley.ErrorItem
+import parsley.ErrorItemT
+import parsley.ParseErrorT
 import parsley.Predicate
 import parsley.backend.AbstractStackMachine
+import parsley.backend.Errors
 import parsley.backend.Instruction
 import parsley.backend.Jumps
 import parsley.backend.ParseStatus
@@ -133,10 +137,76 @@ class SingleMany_<I, E>(val i: I) : Instruction<I, E> {
     override fun toString(): String = "SingleMany_"
 }
 
+// TODO Is this correct?
+class MatchMany_<I, E>(val path: Array<Matcher<I>>) : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        while (true) {
+            if (machine.hasMore(path.size)) {
+                path.forEachIndexed { ind, m ->
+                    val i = machine.take()
+                    if (m(i)) {
+                        machine.consume()
+                    } else {
+                        if (ind == 0) return@apply
+                        else machine.fail()
+                    }
+                }
+            } else return@apply
+        }
+    }
+
+    override fun toString(): String = "MatchMany_(${path.toList()})"
+}
+
+class MatchManyN_<I, E>(val paths: Array<Array<Matcher<I>>>) : Instruction<I, E>, Errors<I> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        loop@while (true) {
+            for (p in paths) {
+                if (machine.hasMore(p.size)) {
+                    p.forEachIndexed { ind, m ->
+                        val i = machine.take()
+                        if (m(i)) {
+                            machine.consume()
+                        } else {
+                            if (ind != 0) {
+                                unexpected.head = i
+                                return@apply machine.failWith(error)
+                            }
+                        }
+                    }
+                    continue@loop
+                }
+            }
+            return@apply
+        }
+    }
+
+    override fun toString(): String = "MatchManyN_(${paths.map { it.toList() }})"
+
+    private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
+    override var error = ParseErrorT.Trivial(-1, unexpected, mutableSetOf())
+}
+
+sealed class Matcher<I> : Predicate<I> {
+    class Sat<I>(val f: Predicate<I>, val expected: Set<ErrorItem<I>>): Matcher<I>()
+    class El<I>(val el: I, val expected: Set<ErrorItem<I>>): Matcher<I>()
+
+    override fun invoke(i: I): Boolean = when (this) {
+        is Sat -> f(i)
+        is El -> el == i
+    }
+
+    override fun toString(): String = when (this) {
+        is Sat -> "Sat"
+        is El -> "El($el)"
+    }
+}
+
 // ########## Raw input
 class PushChunkOf<I, E> : Instruction<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.status == ParseStatus.Err) {
+            machine.inputCheckStack.drop()
             machine.fail()
         } else {
             machine.handlerStack.drop()

@@ -21,7 +21,8 @@ fun <E> Parser<Char, E, Any?>.chunkOf(): Parser<Char, E, String> =
 fun <E> Parser<Char, E, Any?>.stringOf(): Parser<Char, E, String> =
     Parser(CharListToString(ChunkOf(parserF)))
 
-fun Parser.Companion.satisfy(p: CharPredicate): Parser<Char, Nothing, Char> = Parser(Satisfy(p))
+fun Parser.Companion.satisfy(expected: Set<ErrorItem<Char>> = emptySet(), p: CharPredicate): Parser<Char, Nothing, Char> =
+    Parser(Satisfy(p, expected))
 
 fun <E, A> Parser<Char, E, Char>.map(f: CharFunc<A>): Parser<Char, E, A> = map<Char, E, Char, A>(f)
 

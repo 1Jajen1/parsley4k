@@ -1,5 +1,6 @@
 package parsley.backend
 
+import parsley.ErrorItem
 import parsley.backend.instructions.Apply
 import parsley.backend.instructions.Call
 import parsley.backend.instructions.Catch
@@ -15,6 +16,9 @@ import parsley.backend.instructions.JumpTable
 import parsley.backend.instructions.Label
 import parsley.backend.instructions.Many_
 import parsley.backend.instructions.Map
+import parsley.backend.instructions.MatchManyN_
+import parsley.backend.instructions.MatchMany_
+import parsley.backend.instructions.Matcher
 import parsley.backend.instructions.Pop
 import parsley.backend.instructions.Push
 import parsley.backend.instructions.PushChunkOf
@@ -108,16 +112,16 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
             }
             is Satisfy<*> -> {
                 if (ctx.discard) {
-                    ctx += Satisfy_(p.match.unsafe())
+                    ctx += Satisfy_(p.match.unsafe(), p.expected.unsafe())
                 } else {
-                    ctx += parsley.backend.instructions.Satisfy(p.match.unsafe())
+                    ctx += parsley.backend.instructions.Satisfy(p.match.unsafe(), p.expected.unsafe())
                 }
             }
             is Single<*> -> {
                 if (ctx.discard) {
-                    ctx += Single_(p.i.unsafe())
+                    ctx += Single_(p.i.unsafe(), p.expected.unsafe())
                 } else {
-                    ctx += parsley.backend.instructions.Single(p.i.unsafe())
+                    ctx += parsley.backend.instructions.Single(p.i.unsafe(), p.expected.unsafe())
                 }
             }
             is LookAhead -> {
@@ -156,27 +160,36 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                 }
             }
             is Many<I, E, Any?> -> {
-                when (p.p) {
-                    is Satisfy<*> -> {
-                        if (ctx.discard) ctx += SatisfyMany_(p.p.unsafe<Satisfy<I>>().match)
-                        else ctx += SatisfyMany(p.p.unsafe<Satisfy<I>>().match)
-                    }
-                    is Single<*> -> {
-                        if (ctx.discard) ctx += SingleMany_(p.p.unsafe<Single<I>>().i)
-                        else ctx += SingleMany(p.p.unsafe<Single<I>>().i)
-                    }
-                    else -> {
-                        val handler = ctx.mkLabel()
-                        val jumpL = ctx.mkLabel()
-                        ctx += InputCheck(handler)
-                        ctx += Label(jumpL)
-                        callRecursive(p.p)
-                        ctx += Label(handler)
-                        if (ctx.discard) {
-                            ctx += Many_(jumpL)
-                        } else {
-                            ctx += parsley.backend.instructions.Many(jumpL)
+                val path = mkPath(p.p, ctx.subs)
+                val paths = mkPaths(p.p, ctx.subs)
+                if (path != null) {
+                    if (path.size == 1) {
+                        when (val el = path[0]) {
+                            is Matcher.Sat -> {
+                                if (ctx.discard) ctx += SatisfyMany_(el.f)
+                                else ctx += SatisfyMany(el.f)
+                            }
+                            is Matcher.El -> {
+                                if (ctx.discard) ctx += SingleMany_(el.el)
+                                else ctx += SingleMany(el.el)
+                            }
                         }
+                    } else {
+                        ctx += MatchMany_(path)
+                    }
+                } else if (paths != null) {
+                    ctx += MatchManyN_(paths)
+                } else {
+                    val handler = ctx.mkLabel()
+                    val jumpL = ctx.mkLabel()
+                    ctx += InputCheck(handler)
+                    ctx += Label(jumpL)
+                    callRecursive(p.p)
+                    ctx += Label(handler)
+                    if (ctx.discard) {
+                        ctx += Many_(jumpL)
+                    } else {
+                        ctx += parsley.backend.instructions.Many(jumpL)
                     }
                 }
             }
@@ -193,10 +206,79 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                     ctx += PushChunkOf()
                 }
             }
+            // TODO
+            is parsley.frontend.Label -> {
+                callRecursive(p.p)
+            }
             else -> return false
         }
         return true
     }
+}
+
+private fun <I, E> mkPath(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, Any?>>): Array<Matcher<I>>? {
+    val buf = mutableListOf<Matcher<I>>()
+    var curr = p
+    l@ while (true) {
+        when (curr) {
+            is Satisfy<*> -> {
+                buf.add(Matcher.Sat(curr.match.unsafe(), curr.expected.unsafe()))
+                break@l
+            }
+            is Single<*> -> {
+                buf.add(Matcher.El(curr.i.unsafe(), curr.expected.unsafe()))
+                break@l
+            }
+            is Pure -> break@l
+            is ApR<I, E, *, Any?> -> {
+                var l = curr.pA
+                val lbuf = mutableListOf<Matcher<I>>()
+                i@ while (true) {
+                    when (l) {
+                        is Satisfy<*> -> {
+                            lbuf.add(Matcher.Sat(l.match.unsafe(), l.expected.unsafe()))
+                            break@i
+                        }
+                        is Single<*> -> {
+                            lbuf.add(Matcher.El(l.i.unsafe(), l.expected.unsafe()))
+                            break@i
+                        }
+                        is ApR<I, E, *, Any?> -> {
+                            when (val el = l.pB) {
+                                is Satisfy<*> -> {
+                                    lbuf.add(Matcher.Sat(el.match.unsafe(), el.expected.unsafe()))
+                                }
+                                is Single<*> -> {
+                                    lbuf.add(Matcher.El(el.i.unsafe(), el.expected.unsafe()))
+                                }
+                                else -> return null
+                            }
+                            l = l.pA
+                        }
+                        is parsley.frontend.Label -> l = l.p
+                        else -> return null
+                    }
+                }
+                buf.addAll(lbuf.reversed())
+                curr = curr.pB
+            }
+            is parsley.frontend.Label -> curr = curr.p
+            is Let -> if (!curr.recursive) curr = subs[curr.sub] else return null
+            else -> return null
+        }
+    }
+    return buf.toTypedArray()
+}
+
+private fun <I, E> mkPaths(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, Any?>>): Array<Array<Matcher<I>>>? {
+    val buf = mutableListOf<Array<Matcher<I>>>()
+    var curr = p
+    while (curr is Alt) {
+        mkPath(curr.left, subs)?.let(buf::add) ?: return null
+        curr = curr.right
+    }
+    mkPath(curr, subs)?.let(buf::add) ?: return null
+    return buf.toTypedArray()
 }
 
 @OptIn(ExperimentalStdlibApi::class)
@@ -204,7 +286,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
     p: Alt<I, E, Any?>,
     ctx: CodeGenContext<I, E>
 ): Unit {
-    val (table, fallback) = toJumpTable(p, ctx.subs)
+    val (table, fallback, expected) = toJumpTable(p, ctx.subs)
 
     suspend fun <A> DeepRecursiveScope<ParserF<I, E, A>, Unit>.asChoice(xs: List<ParserF<I, E, A>>): Unit =
         when (xs.size) {
@@ -265,7 +347,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
             if (fallback.isNotEmpty()) {
                 ctx += InputCheck(fL)
             }
-            ctx += JumpTable(labels)
+            ctx += JumpTable(labels, expected)
             table.forEach { (i, xs) ->
                 ctx += Label(labels[i]!!)
                 // TODO Is this even good?
@@ -296,36 +378,44 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
 private fun <I, E> toJumpTable(
     p: Alt<I, E, Any?>,
     subs: IntMap<ParserF<I, E, Any?>>
-): Pair<MutableMap<I, MutableList<ParserF<I, E, Any?>>>, MutableList<ParserF<I, E, Any?>>> {
+): Triple<MutableMap<I, MutableList<ParserF<I, E, Any?>>>, MutableList<ParserF<I, E, Any?>>, Set<ErrorItem<I>>> {
     val table = mutableMapOf<I, MutableList<ParserF<I, E, Any?>>>()
     val fallback = mutableListOf<ParserF<I, E, Any?>>()
     var curr: ParserF<I, E, Any?> = p
+    val expectedBuf = mutableSetOf<ErrorItem<I>>()
     while (curr is Alt) {
-        curr.left.findLeading(subs).takeIf { it.isNotEmpty() }?.forEach {
-            val el = curr.unsafe<Alt<I, E, Any?>>().left
-            if (table.containsKey(it)) table[it]!!.add(el)
-            else table[it] = mutableListOf(el)
+        curr.left.findLeading(subs)?.let { (els, expected) ->
+            els.forEach {
+                val el = curr.unsafe<Alt<I, E, Any?>>().left
+                if (table.containsKey(it)) table[it]!!.add(el)
+                else table[it] = mutableListOf(el)
+            }
+            expectedBuf.addAll(expected)
         } ?: fallback.add(curr.left)
         curr = curr.right
     }
-    curr.findLeading(subs).takeIf { it.isNotEmpty() }?.forEach {
-        if (table.containsKey(it)) table[it]!!.add(curr)
-        else table[it] = mutableListOf(curr)
+    curr.findLeading(subs)?.let { (els, expected) ->
+        els.forEach {
+            if (table.containsKey(it)) table[it]!!.add(curr)
+            else table[it] = mutableListOf(curr)
+        }
+        expectedBuf.addAll(expected)
     } ?: fallback.add(curr)
 
-    return table to fallback
+    return Triple(table, fallback, expectedBuf)
 }
 
 // TODO Try to handle Alt as well. This would essentially be lifting the Alt up and then duplicating
 //  part of the underlying parser...
+// TODO Collect all tokens of a path if the pattern is ApR(ApR(Sat, Sat), Sat) etc and it only has one expected
 /*
  * Idea: Look for Ap/ApR/ApL(Alt(...), p) and collect jump table from Alt
  *  Also look for special case Ap/ApR/ApL(Alt(..., Pure(x)), p) and also collect from p because there is a no-consume way to it
  */
-private tailrec fun <I, E> ParserF<I, E, Any?>.findLeading(subs: IntMap<ParserF<I, E, Any?>>): Set<I> =
+private tailrec fun <I, E> ParserF<I, E, Any?>.findLeading(subs: IntMap<ParserF<I, E, Any?>>): Pair<Set<I>, Set<ErrorItem<I>>>? =
     when (this) {
-        is Satisfy<*> -> emptySet()// accepts.unsafe()
-        is Single<*> -> setOf(i.unsafe())
+        is Satisfy<*> -> emptySet<I>() to expected.unsafe()// accepts.unsafe()
+        is Single<*> -> setOf(i.unsafe<I>()) to expected.unsafe()
         is Attempt -> p.findLeading(subs)
         is Ap<I, E, *, Any?> -> {
             if (pF is Pure) pA.findLeading(subs)
@@ -333,6 +423,8 @@ private tailrec fun <I, E> ParserF<I, E, Any?>.findLeading(subs: IntMap<ParserF<
         }
         is ApR<I, E, *, Any?> -> pA.findLeading(subs)
         is ApL<I, E, Any?, *> -> pA.findLeading(subs)
+        is ChunkOf<I, E, Any?> -> p.findLeading(subs)
+        is parsley.frontend.Label -> p.findLeading(subs)
         is Let -> subs[sub].findLeading(subs)
-        else -> emptySet()
+        else -> null
     }

@@ -12,6 +12,7 @@ import parsley.collections.IntMap
 import parsley.collections.IntSet
 import parsley.unsafe
 
+// TODO add support for MatchN
 fun <I, E> Method<I, E>.rewriteRules(): Method<I, E> {
     var i = 0
     while (i < size - 1) {
@@ -21,22 +22,22 @@ fun <I, E> Method<I, E>.rewriteRules(): Method<I, E> {
             e1 is Satisfy_ && e2 is Satisfy_ -> {
                 removeAt(i)
                 removeAt(i)
-                add(i--, SatisfyN_(arrayOf(e1.f, e2.f)))
+                add(i--, SatisfyN_(arrayOf(e1.f, e2.f), arrayOf(e1.error.expected, e2.error.expected)))
             }
             e1 is SatisfyN_ && e2 is Satisfy_ -> {
                 removeAt(i)
                 removeAt(i)
-                add(i--, SatisfyN_(e1.fArr + e2.f))
+                add(i--, SatisfyN_(e1.fArr + e2.f, e1.eArr + e2.error.expected))
             }
             e1 is Single_ && e2 is Single_ -> {
                 removeAt(i)
                 removeAt(i)
-                add(i--, SingleN_(arrayOf<Any?>(e1.i, e2.i).unsafe()))
+                add(i--, SingleN_(arrayOf<Any?>(e1.i, e2.i).unsafe(), arrayOf(e1.error.expected, e2.error.expected)))
             }
             e1 is SingleN_ && e2 is Single_ -> {
                 removeAt(i)
                 removeAt(i)
-                add(i--, SingleN_(e1.fArr + e2.i))
+                add(i--, SingleN_(e1.fArr + e2.i, e1.eArr + e2.error.expected))
             }
             e1 is Jump && e2 is Label && e1.to == e2.id -> {
                 removeAt(i--)

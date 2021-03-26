@@ -28,6 +28,15 @@ class ArrayStack {
     fun isEmpty(): Boolean = offset == 0
     fun isNotEmpty(): Boolean = offset != 0
     fun size(): Int = offset
+    fun clear() {
+        offset = 0
+    }
+
+    internal inline fun forEach(f: (Any?) -> Unit) {
+        for (ind in 0 until offset) {
+            f(content[ind])
+        }
+    }
 
     companion object {
         const val ARR_SIZE = 8

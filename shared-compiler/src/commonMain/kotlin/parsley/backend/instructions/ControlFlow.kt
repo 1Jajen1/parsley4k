@@ -1,7 +1,11 @@
 package parsley.backend.instructions
 
 import parsley.Either
+import parsley.ErrorItem
+import parsley.ErrorItemT
+import parsley.ParseErrorT
 import parsley.backend.AbstractStackMachine
+import parsley.backend.Errors
 import parsley.backend.Instruction
 import parsley.backend.Jumps
 import parsley.unsafe
@@ -63,8 +67,10 @@ class Return<I, E> : Instruction<I, E> {
 }
 
 // Optimised
-class JumpTable<I, E>(var table: Map<I, Int>) : Instruction<I, E>, Jumps {
+class JumpTable<I, E>(var table: Map<I, Int>, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Jumps, Errors<I> {
     override var to: Int = -1 // unused
+    private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
+    override var error: ParseErrorT.Trivial<I> = ParseErrorT.Trivial(-1, unexpected, expected)
     override fun onAssembly(f: (Int) -> Int): Boolean {
         table = table.mapValues { (_, i) -> f(i) }
         return true
@@ -74,8 +80,11 @@ class JumpTable<I, E>(var table: Map<I, Int>) : Instruction<I, E>, Jumps {
             val i = machine.take()
             if (table.containsKey(i)) {
                 machine.jump(table[i]!!)
-            } else machine.fail()
-        } else machine.needInput()
+            } else {
+                unexpected.head = i
+                machine.failWith(error)
+            }
+        } else machine.needInput(error.expected)
     }
 
     override fun toString(): String = "JumpTable($table)"

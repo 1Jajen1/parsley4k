@@ -24,6 +24,11 @@ open class JsonBench {
     }
 
     @Benchmark
+    open fun jsonParsleyStringTrie() {
+        benchmarks.parsers.string.compiledJsonParserTrie.parse(jsonSample1KCharArr)
+    }
+
+    @Benchmark
     open fun jsonParsleyGenericCold() {
         benchmarks.parsers.generic.jsonRootParser.compile<Char, Nothing, benchmarks.parsers.Json>().parse(jsonSample1KArr)
     }
@@ -31,6 +36,11 @@ open class JsonBench {
     @Benchmark
     open fun jsonParsleyStringCold() {
         benchmarks.parsers.string.jsonRootParser.compile().parse(jsonSample1KCharArr)
+    }
+
+    @Benchmark
+    open fun jsonParsleyStringTrieCold() {
+        benchmarks.parsers.string.jsonRootParserTrie.compile().parse(jsonSample1KCharArr)
     }
 
     @Benchmark

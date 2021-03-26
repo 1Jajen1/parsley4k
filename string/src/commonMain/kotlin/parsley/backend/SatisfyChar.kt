@@ -2,11 +2,14 @@ package parsley.backend
 
 import parsley.CharFunc
 import parsley.CharPredicate
+import parsley.CharTokensT
+import parsley.ErrorItemT
+import parsley.ParseErrorT
 import parsley.StringStackMachine
 import parsley.unsafe
 
 // TODO Add warning after compiling that this boxes. Also warn about generic satisfy instructions
-class SatisfyChar<E>(val p: CharPredicate) : Instruction<Char, E> {
+class SatisfyChar<E>(val p: CharPredicate) : Instruction<Char, E>, Errors<Char> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
         if (machine.hasMore()) {
@@ -14,25 +17,39 @@ class SatisfyChar<E>(val p: CharPredicate) : Instruction<Char, E> {
             if (p.invokeP(c)) {
                 machine.consume()
                 machine.push(c)
-            } else machine.fail()
-        } else machine.needInput()
+            } else {
+                unexpected.head = c
+                machine.failWith(error)
+            }
+        } else machine.needInput(error.expected)
     }
 
     override fun toString(): String = "SatisfyChar"
+
+    private var unexpected = CharTokensT(' ', charArrayOf())
+    override var error: ParseErrorT.Trivial<Char> =
+        ParseErrorT.Trivial(-1, unexpected, emptySet())
 }
 
-class SatisfyChar_<E>(val p: CharPredicate) : Instruction<Char, E> {
+class SatisfyChar_<E>(val p: CharPredicate) : Instruction<Char, E>, Errors<Char> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
         if (machine.hasMore()) {
             val c = machine.takeP()
             if (p.invokeP(c)) {
                 machine.consume()
-            } else machine.fail()
-        } else machine.needInput()
+            } else {
+                unexpected.head = c
+                machine.failWith(error)
+            }
+        } else machine.needInput(error.expected)
     }
 
     override fun toString(): String = "SatisfyChar_"
+
+    private var unexpected = CharTokensT(' ', charArrayOf())
+    override var error: ParseErrorT.Trivial<Char> =
+        ParseErrorT.Trivial(-1, unexpected, emptySet())
 }
 
 class SatisfyCharMany<E>(val p: CharPredicate) : Instruction<Char, E> {
@@ -48,8 +65,6 @@ class SatisfyCharMany<E>(val p: CharPredicate) : Instruction<Char, E> {
                 return
             }
         }
-        // TODO
-        machine.needInput()
     }
 
     override fun toString(): String = "SatisfyCharMany"
@@ -64,14 +79,12 @@ class SatisfyCharMany_<E>(val p: CharPredicate) : Instruction<Char, E> {
                 machine.consume()
             } else return
         }
-        // TODO
-        machine.needInput()
     }
 
     override fun toString(): String = "SatisfyCharMany_"
 }
 
-class SatisfyCharMap<E>(val p: CharPredicate, val f: CharFunc<Any?>) : Instruction<Char, E> {
+class SatisfyCharMap<E>(val p: CharPredicate, val f: CharFunc<Any?>) : Instruction<Char, E>, Errors<Char> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
         if (machine.hasMore()) {
@@ -79,9 +92,16 @@ class SatisfyCharMap<E>(val p: CharPredicate, val f: CharFunc<Any?>) : Instructi
             if (p.invokeP(c)) {
                 machine.consume()
                 machine.push(f.invokeP(c))
-            } else machine.fail()
-        } else machine.needInput()
+            } else {
+                unexpected.head = c
+                machine.failWith(error)
+            }
+        } else machine.needInput(error.expected)
     }
 
     override fun toString(): String = "SatisfyCharMap"
+
+    private var unexpected = CharTokensT(' ', charArrayOf())
+    override var error: ParseErrorT.Trivial<Char> =
+        ParseErrorT.Trivial(-1, unexpected, emptySet())
 }

@@ -27,6 +27,7 @@ class Catch<I, E> : Instruction<I, E> {
         val checkOff = machine.inputCheckStack.pop()
         if (machine.status == ParseStatus.Err) {
             if (checkOff == machine.inputOffset) {
+                machine.clearError()
                 machine.status = ParseStatus.Ok
             } else machine.fail()
         } else {
@@ -52,6 +53,7 @@ class ResetOffsetOnFail<I, E> : Instruction<I, E> {
         val off = machine.inputCheckStack.pop()
         if (machine.status == ParseStatus.Err) {
             machine.inputOffset = off
+            machine.clearError()
             machine.fail()
         } else {
             machine.handlerStack.drop()
@@ -78,6 +80,7 @@ class ResetOnFailAndFailOnOk<I, E> : Instruction<I, E> {
         // TODO double check
         machine.inputOffset = off
         if (machine.status == ParseStatus.Err) {
+            machine.clearError()
             machine.status = ParseStatus.Ok
         } else {
             machine.handlerStack.drop()
@@ -95,6 +98,7 @@ class RecoverWith<I, E>(val el: Any?) : Instruction<I, E> {
         if (machine.status == ParseStatus.Err) {
             if (checkOff == machine.inputOffset) {
                 machine.status = ParseStatus.Ok
+                machine.clearError()
                 machine.push(el)
             } else machine.fail()
         } else {
@@ -109,6 +113,7 @@ class JumpGoodAttempt<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         val checkOff = machine.inputCheckStack.pop()
         if (machine.status == ParseStatus.Err) {
+            machine.clearError()
             machine.status = ParseStatus.Ok
             machine.inputOffset = checkOff
         } else {
@@ -124,6 +129,7 @@ class RecoverAttemptWith<I, E>(val el: Any?) : Instruction<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         val checkOff = machine.inputCheckStack.pop()
         if (machine.status == ParseStatus.Err) {
+            machine.clearError()
             machine.status = ParseStatus.Ok
             machine.inputOffset = checkOff
             machine.push(el)

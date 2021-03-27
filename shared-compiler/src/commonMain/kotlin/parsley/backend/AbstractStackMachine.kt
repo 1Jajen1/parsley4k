@@ -2,6 +2,7 @@ package parsley.backend
 
 import parsley.ErrorItem
 import parsley.ErrorItemT
+import parsley.FancyError
 import parsley.ParseError
 import parsley.ParseErrorT
 import parsley.stack.ArrayStack
@@ -14,9 +15,12 @@ abstract class AbstractStackMachine<I, E>(val instructions: Array<Instruction<I,
     val returnStack = IntStack()
     val handlerStack = ArrayStack()
     val inputCheckStack = IntStack()
-    var error: ParseErrorT<I, E>? = null
-    var hints = ArrayStack()
-    var hintOffset: Int = 0
+
+    var errorOffset: Int = 0
+    var errorUnexpected: ErrorItemT<I>? = null
+    var errorExpected = ArrayStack()
+    var errorFancy = ArrayStack()
+
     lateinit var finalError: ParseError<I, E>
 
     var status: ParseStatus = ParseStatus.Ok
@@ -43,45 +47,63 @@ abstract class AbstractStackMachine<I, E>(val instructions: Array<Instruction<I,
             returnStack.setOffset(handler.retStackSz)
             programCounter = handler.handlerPos
         } else {
-            if (error == null) TODO("Empty error")
-
-            val err = error!!
-            val offset = error!!.offset
-            val finalErr = when (err) {
-                is ParseErrorT.Trivial -> {
-                    val unexpected = err.unexpected?.toFinal()
-                    clearError()
-                    val expected = mutableSetOf<ErrorItem<I>>()
-                    hints.forEach { expected.addAll(it.unsafe()) }
-                    ParseError.Trivial(offset, unexpected, expected)
-                }
-                is ParseErrorT.Fancy -> {
-                    ParseError.Fancy(offset, err.errors)
-                }
-            }
-            finalError = finalErr
+            finalError = makeError()
             programCounter = instructions.size
         }
     }
 
+    fun makeError(): ParseError<I, E> {
+        val expected = mutableSetOf<ErrorItem<I>>()
+        errorExpected.forEach { expected.addAll(it.unsafe()) }
+        val errors = mutableSetOf<FancyError<E>>()
+        errorFancy.forEach { errors.addAll(it.unsafe()) }
+        return ParseError(errorOffset, errorUnexpected?.toFinal(), expected, errors)
+    }
+
     fun failWith(err: ParseErrorT<I, E>): Unit {
-        err.offset = inputOffset
-        error = err
+        setError(err)
         fail()
     }
 
-    fun clearError() {
-        if (error is ParseErrorT.Trivial) {
-            val err = error.unsafe<ParseErrorT.Trivial<I>>()
-            if (hintOffset == err.offset) {
-                hints.push(err.expected)
-            } else if (hintOffset < err.offset) {
-                hints.clear()
-                hints.push(err.expected)
-                hintOffset = err.offset
-            }
+    fun setError(err: ParseErrorT<I, E>): Unit {
+        err.offset = inputOffset
+        if (err.offset > errorOffset) {
+            errorOffset = err.offset
+            errorUnexpected = err.unexpected
+            errorExpected.clear()
+            errorExpected.push(err.expected)
+            errorFancy.clear()
+            errorFancy.push(err.errors)
+        } else if (err.offset == errorOffset) {
+            addUnexpected(err.unexpected)
+            errorExpected.push(err.expected)
+            errorFancy.push(err.errors)
         }
-        error = null
+    }
+
+    fun addUnexpected(item: ErrorItemT<I>?): Unit {
+        errorUnexpected = when {
+            errorUnexpected == null -> item
+            item == null -> errorUnexpected
+            errorUnexpected!!.length() > item!!.length() -> errorUnexpected
+            else -> item
+        }
+    }
+
+    fun addAsHint(error: ParseErrorT<I, E>): Unit {
+        if (errorOffset <= inputOffset) {
+            if (errorOffset < inputOffset) clearError()
+            errorExpected.push(error.expected)
+            errorFancy.push(error.errors)
+            errorOffset = inputOffset
+        }
+    }
+
+    fun clearError(): Unit {
+        errorOffset = -1
+        errorUnexpected = null
+        errorExpected.clear()
+        errorFancy.clear()
     }
 
     fun call(sub: Int): Unit {
@@ -110,7 +132,7 @@ abstract class AbstractStackMachine<I, E>(val instructions: Array<Instruction<I,
         inputOffset += n
     }
 
-    private val eofErr = ParseErrorT.Trivial<I>(-1, ErrorItemT.EndOfInput, emptySet())
+    private val eofErr = ParseErrorT<I, E>(-1, ErrorItemT.EndOfInput, emptySet(), emptySet())
     open fun needInput(expected: Set<ErrorItem<I>> = emptySet()): Unit =
         failWith(eofErr.also { it.expected = expected })
 

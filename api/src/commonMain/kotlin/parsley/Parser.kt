@@ -7,7 +7,10 @@ import parsley.frontend.NegLookAhead
 import parsley.frontend.ParserF
 import parsley.frontend.ChunkOf
 import parsley.frontend.Empty
+import parsley.frontend.Eof
+import parsley.frontend.Hide
 import parsley.frontend.Label
+import parsley.frontend.MatchOf
 import parsley.frontend.Satisfy
 import parsley.frontend.Single
 
@@ -39,11 +42,17 @@ fun <I, E, A> Parser.Companion.recursive(f: () -> Parser<I, E, A>): Parser<I, E,
     Parser(Lazy { f().parserF })
 
 // Input
+fun Parser.Companion.eof(): Parser<Nothing, Nothing, Nothing> = Parser(Eof)
+
 fun <I> Parser.Companion.satisfy(expected: Set<ErrorItem<I>> = emptySet(), f: (I) -> Boolean): Parser<I, Nothing, I> =
     Parser(Satisfy(f, expected))
 
 fun <I> Parser.Companion.single(i: I): Parser<I, Nothing, I> =
     Parser(Single(i, setOf(ErrorItem.Tokens(i, emptyList()))))
+
+fun <I> Parser.Companion.anySingle(): Parser<I, Nothing, I> = satisfy { true }
+
+fun <I> Parser.Companion.anySingleBut(el: I): Parser<I, Nothing, I> = satisfy { it != el }
 
 inline fun <reified I> Parser.Companion.chunk(vararg els: I): Parser<I, Nothing, Array<I>> =
     els.reversed().fold(Parser.pure(emptyArray<I>()).unsafe<Parser<I, Nothing, Array<I>>>()) { acc, c ->
@@ -52,4 +61,10 @@ inline fun <reified I> Parser.Companion.chunk(vararg els: I): Parser<I, Nothing,
 
 fun <I, E> Parser<I, E, Any?>.chunkOf(): Parser<I, E, List<I>> = Parser(ChunkOf(parserF))
 
-fun <I, E, A> Parser<I, E, A>.label(str: String): Parser<I, E, A> = Parser(Label(str, parserF))
+// Prefer chunkOf if the result is not needed
+fun <I, E, A> Parser<I, E, A>.match(): Parser<I, E, Pair<List<I>, A>> = Parser(MatchOf(parserF))
+
+fun <I> Parser.Companion.remaining(): Parser<I, Nothing, List<I>> = anySingle<I>().many().chunkOf()
+
+fun Parser.Companion.atEnd(): Parser<Nothing, Nothing, Boolean> =
+    eof().hide().constant(true).orElse(false)

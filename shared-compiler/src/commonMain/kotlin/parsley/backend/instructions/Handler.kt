@@ -1,9 +1,13 @@
 package parsley.backend.instructions
 
+import parsley.Either
+import parsley.ParseError
+import parsley.ParseErrorT
 import parsley.backend.AbstractStackMachine
 import parsley.backend.Instruction
 import parsley.backend.Jumps
 import parsley.backend.ParseStatus
+import parsley.toTemplate
 
 class PushHandler<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: AbstractStackMachine<I, E>) {
@@ -27,7 +31,6 @@ class Catch<I, E> : Instruction<I, E> {
         val checkOff = machine.inputCheckStack.pop()
         if (machine.status == ParseStatus.Err) {
             if (checkOff == machine.inputOffset) {
-                machine.clearError()
                 machine.status = ParseStatus.Ok
             } else machine.fail()
         } else {
@@ -53,7 +56,6 @@ class ResetOffsetOnFail<I, E> : Instruction<I, E> {
         val off = machine.inputCheckStack.pop()
         if (machine.status == ParseStatus.Err) {
             machine.inputOffset = off
-            machine.clearError()
             machine.fail()
         } else {
             machine.handlerStack.drop()
@@ -80,15 +82,17 @@ class ResetOnFailAndFailOnOk<I, E> : Instruction<I, E> {
         // TODO double check
         machine.inputOffset = off
         if (machine.status == ParseStatus.Err) {
-            machine.clearError()
             machine.status = ParseStatus.Ok
         } else {
             machine.handlerStack.drop()
-            machine.fail()
+            // TODO error. Maybe use findLeading?
+            machine.failWith(error)
         }
     }
 
     override fun toString(): String = "ResetOnFailAndFailOnOk"
+
+    private val error = ParseErrorT<I, E>(-1, null, emptySet(), emptySet())
 }
 
 // Optimised. Instructions that can be represented by a combination of the primitives but are fused/faster
@@ -98,7 +102,6 @@ class RecoverWith<I, E>(val el: Any?) : Instruction<I, E> {
         if (machine.status == ParseStatus.Err) {
             if (checkOff == machine.inputOffset) {
                 machine.status = ParseStatus.Ok
-                machine.clearError()
                 machine.push(el)
             } else machine.fail()
         } else {
@@ -109,11 +112,25 @@ class RecoverWith<I, E>(val el: Any?) : Instruction<I, E> {
     override fun toString(): String = "RecoverWith($el)"
 }
 
+class Recover<I, E> : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        val checkOff = machine.inputCheckStack.pop()
+        if (machine.status == ParseStatus.Err) {
+            if (checkOff == machine.inputOffset) {
+                machine.status = ParseStatus.Ok
+            } else machine.fail()
+        } else {
+            machine.handlerStack.drop()
+        }
+    }
+
+    override fun toString(): String = "Recover"
+}
+
 class JumpGoodAttempt<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         val checkOff = machine.inputCheckStack.pop()
         if (machine.status == ParseStatus.Err) {
-            machine.clearError()
             machine.status = ParseStatus.Ok
             machine.inputOffset = checkOff
         } else {
@@ -129,7 +146,6 @@ class RecoverAttemptWith<I, E>(val el: Any?) : Instruction<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         val checkOff = machine.inputCheckStack.pop()
         if (machine.status == ParseStatus.Err) {
-            machine.clearError()
             machine.status = ParseStatus.Ok
             machine.inputOffset = checkOff
             machine.push(el)
@@ -139,4 +155,45 @@ class RecoverAttemptWith<I, E>(val el: Any?) : Instruction<I, E> {
     }
 
     override fun toString(): String = "RecoverAttemptWith($el)"
+}
+
+class RecoverAttempt<I, E> : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        val checkOff = machine.inputCheckStack.pop()
+        if (machine.status == ParseStatus.Err) {
+            machine.status = ParseStatus.Ok
+            machine.inputOffset = checkOff
+        } else {
+            machine.handlerStack.drop()
+        }
+    }
+
+    override fun toString(): String = "RecoverAttempt"
+}
+
+class CatchEither<I, E> : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        if (machine.status == ParseStatus.Err) {
+            machine.status = ParseStatus.Ok
+            machine.push(Either.left(machine.makeError()))
+        } else {
+            machine.handlerStack.drop()
+            val top = machine.peek()
+            machine.exchange(Either.right(top))
+        }
+    }
+
+    override fun toString(): String = "CatchEither"
+}
+
+class AlwaysRecover<I, E> : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        if (machine.status == ParseStatus.Err) {
+            machine.status = ParseStatus.Ok
+        } else {
+            machine.handlerStack.drop()
+        }
+    }
+
+    override fun toString(): String = "AlwaysRecover"
 }

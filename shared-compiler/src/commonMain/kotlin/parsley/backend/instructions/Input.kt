@@ -10,7 +10,7 @@ import parsley.backend.FuseMap
 import parsley.backend.Instruction
 import parsley.unsafe
 
-class Satisfy<I, E>(val f: Predicate<I>, expected: Set<ErrorItem<I>>) : Instruction<I, E>, FuseMap<I, E>, Errors<I> {
+class Satisfy<I, E>(val f: Predicate<I>, expected: Set<ErrorItem<I>>) : Instruction<I, E>, FuseMap<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.hasMore()) {
             val i = machine.take()
@@ -28,10 +28,10 @@ class Satisfy<I, E>(val f: Predicate<I>, expected: Set<ErrorItem<I>>) : Instruct
     override fun fuse(f: (Any?) -> Any?): Instruction<I, E> = SatisfyMap(this.f, f, error.expected)
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    override var error = ParseErrorT.Trivial(-1, unexpected, expected)
+    override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
 }
 
-class Satisfy_<I, E>(val f: Predicate<I>, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I> {
+class Satisfy_<I, E>(val f: Predicate<I>, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.hasMore()) {
             val i = machine.take()
@@ -47,10 +47,10 @@ class Satisfy_<I, E>(val f: Predicate<I>, expected: Set<ErrorItem<I>>) : Instruc
     override fun toString(): String = "Satisfy_"
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    override var error = ParseErrorT.Trivial(-1, unexpected, expected)
+    override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
 }
 
-class Single<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, FuseMap<I, E>, Errors<I> {
+class Single<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, FuseMap<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.hasMore()) {
             val el = machine.take()
@@ -68,10 +68,10 @@ class Single<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, F
     override fun fuse(f: (Any?) -> Any?): Instruction<I, E> = SingleMap(i, f(i), error.expected)
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    override var error = ParseErrorT.Trivial(-1, unexpected, expected)
+    override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
 }
 
-class Single_<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I> {
+class Single_<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.hasMore()) {
             val el = machine.take()
@@ -87,14 +87,14 @@ class Single_<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, 
     override fun toString(): String = "Single_($i)"
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    override var error = ParseErrorT.Trivial(-1, unexpected, expected)
+    override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
 }
 
 // Optimized concatenated methods
-class SatisfyN_<I, E>(val fArr: Array<Predicate<I>>, val eArr: Array<Set<ErrorItem<I>>>) : Instruction<I, E>, Errors<I> {
+class SatisfyN_<I, E>(val fArr: Array<Predicate<I>>, val eArr: Array<Set<ErrorItem<I>>>) : Instruction<I, E>, Errors<I, E> {
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    private var errRef = ParseErrorT.Trivial(-1, unexpected, emptySet())
+    private var errRef = ParseErrorT<I, E>(-1, unexpected, emptySet(), emptySet())
     override var error = errRef
 
     init {
@@ -110,7 +110,7 @@ class SatisfyN_<I, E>(val fArr: Array<Predicate<I>>, val eArr: Array<Set<ErrorIt
             } else onlySingleToken = false
         }
         if (onlySingleToken)
-            error = ParseErrorT.Trivial(-1, unexpected, setOf(ErrorItem.Tokens(buf.first(), buf.drop(1))))
+            error = ParseErrorT<I, E>(-1, unexpected, setOf(ErrorItem.Tokens(buf.first(), buf.drop(1))), emptySet())
     }
 
     private val sz = fArr.size
@@ -133,10 +133,10 @@ class SatisfyN_<I, E>(val fArr: Array<Predicate<I>>, val eArr: Array<Set<ErrorIt
     override fun toString(): String = "SatisfyN_($sz)"
 }
 
-class SingleN_<I, E>(val fArr: Array<I>, val eArr: Array<Set<ErrorItem<I>>>) : Instruction<I, E>, Errors<I> {
+class SingleN_<I, E>(val fArr: Array<I>, val eArr: Array<Set<ErrorItem<I>>>) : Instruction<I, E>, Errors<I, E> {
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    private var errRef = ParseErrorT.Trivial(-1, unexpected, emptySet())
+    private var errRef = ParseErrorT<I, E>(-1, unexpected, emptySet(), emptySet())
     override var error = errRef
 
     init {
@@ -152,7 +152,7 @@ class SingleN_<I, E>(val fArr: Array<I>, val eArr: Array<Set<ErrorItem<I>>>) : I
             } else onlySingleToken = false
         }
         if (onlySingleToken)
-            error = ParseErrorT.Trivial(-1, unexpected, setOf(ErrorItem.Tokens(buf.first(), buf.drop(1))))
+            error = ParseErrorT<I, E>(-1, unexpected, setOf(ErrorItem.Tokens(buf.first(), buf.drop(1))), emptySet())
     }
 
     private val sz = fArr.size
@@ -176,7 +176,7 @@ class SingleN_<I, E>(val fArr: Array<I>, val eArr: Array<Set<ErrorItem<I>>>) : I
 }
 
 // Optimized fused methods
-class SatisfyMap<I, E>(val f: Predicate<I>, val g: (I) -> Any?, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I> {
+class SatisfyMap<I, E>(val f: Predicate<I>, val g: (I) -> Any?, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.hasMore()) {
             val i = machine.take()
@@ -193,11 +193,11 @@ class SatisfyMap<I, E>(val f: Predicate<I>, val g: (I) -> Any?, expected: Set<Er
     override fun toString(): String = "SatisfyMap"
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    override var error = ParseErrorT.Trivial(-1, unexpected, expected)
+    override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
 }
 
 // TODO Add a note to the docs later that g(i) == g(j) is expected if i == j
-class SingleMap<I, E>(val el: I, val res: Any?, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I> {
+class SingleMap<I, E>(val el: I, val res: Any?, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.hasMore()) {
             val i = machine.take()
@@ -214,5 +214,19 @@ class SingleMap<I, E>(val el: I, val res: Any?, expected: Set<ErrorItem<I>>) : I
     override fun toString(): String = "SingleMap($el, $res)"
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    override var error = ParseErrorT.Trivial(-1, unexpected, expected)
+    override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
+}
+
+class Eof<I, E> : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        if (machine.hasMore()) {
+            unexpected.head = machine.take()
+            machine.failWith(error)
+        }
+    }
+
+    override fun toString(): String = "Eof"
+
+    private val unexpected = ErrorItemT.Tokens(null as I, mutableListOf())
+    private val error = ParseErrorT<I, E>(-1, unexpected, setOf(ErrorItem.EndOfInput), emptySet())
 }

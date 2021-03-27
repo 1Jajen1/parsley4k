@@ -158,7 +158,7 @@ class MatchMany_<I, E>(val path: Array<Matcher<I>>) : Instruction<I, E> {
     override fun toString(): String = "MatchMany_(${path.toList()})"
 }
 
-class MatchManyN_<I, E>(val paths: Array<Array<Matcher<I>>>) : Instruction<I, E>, Errors<I> {
+class MatchManyN_<I, E>(val paths: Array<Array<Matcher<I>>>) : Instruction<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         loop@while (true) {
             for (p in paths) {
@@ -184,21 +184,24 @@ class MatchManyN_<I, E>(val paths: Array<Array<Matcher<I>>>) : Instruction<I, E>
     override fun toString(): String = "MatchManyN_(${paths.map { it.toList() }})"
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    override var error = ParseErrorT.Trivial(-1, unexpected, mutableSetOf())
+    override var error = ParseErrorT<I, E>(-1, unexpected, emptySet(), emptySet())
 }
 
 sealed class Matcher<I> : Predicate<I> {
+    class Eof<I> : Matcher<I>()
     class Sat<I>(val f: Predicate<I>, val expected: Set<ErrorItem<I>>): Matcher<I>()
     class El<I>(val el: I, val expected: Set<ErrorItem<I>>): Matcher<I>()
 
     override fun invoke(i: I): Boolean = when (this) {
         is Sat -> f(i)
         is El -> el == i
+        is Eof -> false
     }
 
     override fun toString(): String = when (this) {
         is Sat -> "Sat"
         is El -> "El($el)"
+        is Eof -> "Eof"
     }
 }
 

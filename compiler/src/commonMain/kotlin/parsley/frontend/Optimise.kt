@@ -3,24 +3,24 @@ package parsley.frontend
 import parsley.CompilerSettings
 import parsley.Either
 import parsley.ErrorItem
-import parsley.FrontendSettings
-import parsley.Predicate
+import parsley.collections.IntMap
 import parsley.unsafe
-import kotlin.Lazy
 
 @OptIn(ExperimentalStdlibApi::class)
 fun <I, E, A> ParserF<I, E, A>.optimise(
+    subs: IntMap<ParserF<I, E, Any?>>,
     steps: Array<OptimiseStep<I, E>>,
     settings: CompilerSettings<I, E>
 ): ParserF<I, E, A> =
     DeepRecursiveFunction<ParserF<I, E, Any?>, ParserF<I, E, Any?>> { p ->
-        steps.fold(p) { acc, s -> s.run { step(acc, settings) } }
+        steps.fold(p) { acc, s -> s.run { step(acc, subs, settings) } }
     }(this).unsafe()
 
 interface OptimiseStep<I, E> {
     @OptIn(ExperimentalStdlibApi::class)
     suspend fun DeepRecursiveScope<ParserF<I, E, Any?>, ParserF<I, E, Any?>>.step(
         p: ParserF<I, E, Any?>,
+        subs: IntMap<ParserF<I, E, Any?>>,
         settings: CompilerSettings<I, E>
     ): ParserF<I, E, Any?>
 }
@@ -29,6 +29,7 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
     @OptIn(ExperimentalStdlibApi::class)
     override suspend fun DeepRecursiveScope<ParserF<I, E, Any?>, ParserF<I, E, Any?>>.step(
         p: ParserF<I, E, Any?>,
+        subs: IntMap<ParserF<I, E, Any?>>,
         settings: CompilerSettings<I, E>
     ): ParserF<I, E, Any?> =
         when (p) {
@@ -44,6 +45,10 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     pa is Pure -> {
                         val ff = Pure { f: (Any?) -> Any? -> f(pa.a) }
                         callRecursive(Ap(ff, pf))
+                    }
+                    // p <*> Fail = p *> Fail
+                    pa is Fail -> {
+                        callRecursive(ApR(pf, pa))
                     }
                     // p <*> (q <*> r) = Pure compose <*> p <*> q <*> r
                     pa is Ap<I, E, *, Any?> -> {
@@ -216,43 +221,97 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     else -> Many(pInner)
                 }
             }
-            is ChunkOf<I, E, Any?> -> {
+            is ChunkOf -> {
                 when (val pInner = callRecursive(p.p)) {
-                    is Empty -> Empty
+                    Empty -> Empty
                     else -> ChunkOf(pInner)
                 }
             }
+            is MatchOf<I, E, Any?> -> {
+                when (val pInner = callRecursive(p.p)) {
+                    Empty -> Empty
+                    else -> MatchOf(pInner)
+                }
+            }
             is Label -> {
-                callRecursive(p.p.relabel(p.label))
+                val inner = callRecursive(p.p)
+                val res = inner.relabel(settings, p.label, subs)
+                callRecursive(res)
+            }
+            is Hide -> {
+                val inner = callRecursive(p.p)
+                val res = inner.relabel(settings, null, subs)
+                callRecursive(res)
+            }
+            is Catch<I, E, Any?> -> {
+                when (val pInner = callRecursive(p.p)) {
+                    Empty -> Catch(Empty) // TODO
+                    is Pure -> pInner
+                    else -> Catch(pInner)
+                }
             }
             else -> p
         }
 }
 
 @OptIn(ExperimentalStdlibApi::class)
-fun <I, E> ParserF<I, E, Any?>.relabel(lbl: String): ParserF<I, E, Any?> =
-    DeepRecursiveFunction<ParserF<I, E, Any?>, ParserF<I, E, Any?>> { p ->
-        when (p) {
+fun <I, E> ParserF<I, E, Any?>.relabel(
+    settings: CompilerSettings<I, E>,
+    label: String?,
+    subs: IntMap<ParserF<I, E, Any?>>
+): ParserF<I, E, Any?> =
+    DeepRecursiveFunction<ParserF<I, E, Any?>, ParserF<I, E, Any?>> { pI ->
+        settings.frontend.relabeSteps.fold(null as ParserF<I, E, Any?>?) { acc, s ->
+            acc ?: s.run { step(pI, label, subs) }
+        } ?: throw IllegalStateException("No step could relabel")
+    }.invoke(this)
+
+interface RelabelStep<I, E> {
+    @OptIn(ExperimentalStdlibApi::class)
+    suspend fun DeepRecursiveScope<ParserF<I, E, Any?>, ParserF<I, E, Any?>>.step(
+        p: ParserF<I, E, Any?>,
+        lbl: String?,
+        subs: IntMap<ParserF<I, E, Any?>>
+    ): ParserF<I, E, Any?>?
+}
+
+class DefaultRelabelStep<I, E>: RelabelStep<I, E> {
+    @OptIn(ExperimentalStdlibApi::class)
+    override suspend fun DeepRecursiveScope<ParserF<I, E, Any?>, ParserF<I, E, Any?>>.step(
+        p: ParserF<I, E, Any?>,
+        lbl: String?,
+        subs: IntMap<ParserF<I, E, Any?>>
+    ): ParserF<I, E, Any?>? {
+        return when (p) {
             is Alt -> Alt(callRecursive(p.left), callRecursive(p.right))
             is Satisfy<*> -> Satisfy<I>(
                 p.match.unsafe(),
-                setOf(ErrorItem.Label(lbl)),
+                lbl?.let { setOf(ErrorItem.Label(it)) } ?: emptySet(),
                 p.accepts.unsafe(), p.rejects.unsafe()
             )
             is Single<*> -> Single<I>(
                 p.i.unsafe(),
-                setOf(ErrorItem.Label(lbl))
+                lbl?.let { setOf(ErrorItem.Label(it)) } ?: emptySet()
             )
             is Label -> callRecursive(p.p)
-            is Let -> TODO("???")
             is ApR<I, E, *, Any?> -> ApR(callRecursive(p.pA), p.pB)
             is ApL<I, E, Any?, *> -> ApL(callRecursive(p.pA), p.pB)
             is Ap<I, E, *, Any?> ->
                 if (p.pF is Pure) Ap(p.pF, callRecursive(p.pA).unsafe())
                 else Ap(callRecursive(p.pF).unsafe(), p.pA)
-            is ChunkOf<I, E, Any?> -> ChunkOf(callRecursive(p.p))
-            else -> p
+            is ChunkOf -> ChunkOf(callRecursive(p.p))
+            is MatchOf<I, E, Any?> -> MatchOf(callRecursive(p.p))
+            is Select<I, E, *, Any?> -> Select(callRecursive(p.pEither).unsafe(), p.pIfLeft)
+            is Catch<I, E, Any?> -> Catch(callRecursive(p.p))
+            is Many<I, E, Any?>, is Pure, is Fail, is FailTop ->  p
+            // Why not relabel Let by relabelling the referenced parser?
+            // Well the problem is multiple labeled parsers may use the same let bound one, hence we can't
+            // guarantee our label remains the only one and we'd overwrite labels.
+            is Let -> p
+            else -> null.also { println(p) }
         }
-    }(this)
+    }
+
+}
 
 private inline fun <A, B, C> ((A) -> B).compose(crossinline g: (C) -> A): (C) -> B = { c -> this(g(c)) }

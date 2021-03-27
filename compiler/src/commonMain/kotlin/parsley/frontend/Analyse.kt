@@ -53,7 +53,12 @@ inline fun <I, E> LetBoundStep.Companion.fallthrough(crossinline f: suspend Deep
 
             if (refCount[p]!! == 1) {
                 val nS = seen.add(p)
-                return f(p, nS)
+                return if (f(p, nS)) true else {
+                    // ugly
+                    refCount[p] = refCount[p]!! - 1
+                    seen.remove(p)
+                    false
+                }
             }
 
             return false
@@ -113,10 +118,19 @@ class DefaultLetBoundStep<I, E> : LetBoundStep<I, E> {
                 is Many<I, E, Any?> -> {
                     callRecursive(nS to p.p)
                 }
-                is ChunkOf<I, E, Any?> -> {
+                is ChunkOf -> {
+                    callRecursive(nS to p.p)
+                }
+                is MatchOf<I, E, Any?> -> {
                     callRecursive(nS to p.p)
                 }
                 is Label -> {
+                    callRecursive(nS to p.p)
+                }
+                is Hide -> {
+                    callRecursive(nS to p.p)
+                }
+                is Catch<I, E, Any?> -> {
                     callRecursive(nS to p.p)
                 }
                 else -> Unit
@@ -185,9 +199,14 @@ inline fun <I, E> InsertLetStep.Companion.fallthrough(
                 val newLabel =
                     if (handled.containsKey(p)) handled[p]!!
                     else {
-                        mkLabel().also {
-                            handled[p] = it
-                            subParsers[it] = f(p) ?: return null
+                        when (val new = f(p)) {
+                            null -> return null
+                            else -> {
+                                mkLabel().also {
+                                    subParsers[it] = new
+                                    handled[p] = it
+                                }
+                            }
                         }
                     }
                 Let(rec, newLabel)
@@ -259,11 +278,20 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
                 is Many<I, E, Any?> -> {
                     Many(callRecursive(p.p))
                 }
-                is ChunkOf<I, E, Any?> -> {
+                is ChunkOf -> {
                     ChunkOf(callRecursive(p.p))
+                }
+                is MatchOf<I, E, Any?> -> {
+                    MatchOf(callRecursive(p.p))
                 }
                 is Label -> {
                     Label(p.label, callRecursive(p.p))
+                }
+                is Hide -> {
+                    Hide(callRecursive(p.p))
+                }
+                is Catch<I, E, Any?> -> {
+                    Catch(callRecursive(p.p))
                 }
                 else -> p
             }
@@ -282,10 +310,13 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
     }
 }
 
+// TODO
 fun <I, E, A> ParserF<I, E, A>.small(): Boolean = when (this) {
-    is Pure, is Satisfy<*>, is Single<*>, Empty, is Label -> true
+    is Pure, is Satisfy<*>, is Single<*>, Empty, is Label, is Hide, Eof -> true
     is Ap<I, E, *, A> -> pF.small() && pA.small()
     is ApR<I, E, *, A> -> pA.small() && pB.small()
     is ApL<I, E, A, *> -> pA.small() && pB.small()
+    is ChunkOf -> p.small()
+    is MatchOf<I, E, *> -> p.small()
     else -> false
 }

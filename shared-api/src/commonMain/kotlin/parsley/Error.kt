@@ -1,14 +1,11 @@
 package parsley
 
-sealed class ParseError<out I, out E>(val offset: Int) {
-    class Trivial<I>(
-        offset: Int,
-        val unexpected: ErrorItem<I>?,
-        val expected: Set<ErrorItem<I>>
-    ) : ParseError<I, Nothing>(offset)
-
-    class Fancy<E>(offset: Int, val errors: Set<FancyError<E>>) : ParseError<Nothing, E>(offset)
-}
+class ParseError<I, E>(
+    val offset: Int,
+    val unexpected: ErrorItem<I>?,
+    val expected: Set<ErrorItem<I>>,
+    val errors: Set<FancyError<E>>
+)
 
 sealed class ErrorItem<out I> {
     class Tokens<I>(val head: I, val tail: List<I>) : ErrorItem<I>()

@@ -87,8 +87,16 @@ class Many<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<A>
     override fun toString(): String = "Many($p)"
 }
 
-class ChunkOf<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<I>> {
+class ChunkOf<out I, out E>(val p: ParserF<I, E, Any?>) : ParserF<I, E, List<I>> {
     override fun toString(): String = "ChunkOf($p)"
+}
+
+class MatchOf<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, Pair<List<I>, A>> {
+    override fun toString(): String = "MatchOf($p)"
+}
+
+object Eof : ParserF<Nothing, Nothing, Nothing> {
+    override fun toString(): String = "Eof"
 }
 
 // Failure
@@ -98,4 +106,17 @@ class Label<out I, out E, out A>(val label: String, val p: ParserF<I, E, A>) : P
 
 class Hide<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, A> {
     override fun toString(): String = "Hide($p)"
+}
+
+class Catch<I, E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, Either<ParseError<I, E>, A>> {
+    override fun toString(): String = "Catch($p)"
+}
+
+// Fail is just like Empty with an error however it guarantees a stable offset position and is not aggressively optimized
+class Fail<I, E>(val err: ParseError<I, E>) : ParserF<I, E, Nothing> {
+    override fun toString(): String = "Fail"
+}
+
+object FailTop: ParserF<Nothing, Nothing, Nothing> {
+    override fun toString(): String = "FailTop"
 }

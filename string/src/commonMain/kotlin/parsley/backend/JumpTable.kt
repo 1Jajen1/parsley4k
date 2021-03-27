@@ -6,11 +6,11 @@ import parsley.StringStackMachine
 import parsley.collections.IntMap
 import parsley.unsafe
 
-class CharJumpTable<E>(val map: IntMap<Int>) : Instruction<Char, E>, Jumps, Errors<Char> {
+class CharJumpTable<E>(val map: IntMap<Int>) : Instruction<Char, E>, Jumps, Errors<Char, E> {
     override var to: Int = -1 // unused
 
     private var unexpected = ErrorItemT.Tokens<Char>(null.unsafe(), mutableListOf())
-    override var error: ParseErrorT.Trivial<Char> = ParseErrorT.Trivial(-1, unexpected, emptySet())
+    override var error: ParseErrorT<Char, E> = ParseErrorT(-1, unexpected, emptySet(), emptySet())
 
     override fun onAssembly(f: (Int) -> Int): Boolean {
         map.onEach { _, v -> f(v) }
@@ -22,10 +22,13 @@ class CharJumpTable<E>(val map: IntMap<Int>) : Instruction<Char, E>, Jumps, Erro
         if (machine.hasMore()) {
             val c = machine.takeP()
             val key = c.toInt()
+
+            machine.addAsHint(error)
             if (key in map) machine.jump(map[key])
             else {
                 unexpected.head = c
-                machine.failWith(error)
+                machine.addUnexpected(unexpected)
+                machine.fail()
             }
         } else machine.needInput(error.expected)
     }

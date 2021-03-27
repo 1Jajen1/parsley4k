@@ -18,6 +18,6 @@ interface FuseMap<I, E> {
     fun fuse(f: (Any?) -> Any?): Instruction<I, E>
 }
 
-interface Errors<I> {
-    var error: ParseErrorT.Trivial<I>
+interface Errors<I, E> {
+    var error: ParseErrorT<I, E>
 }

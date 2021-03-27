@@ -1,6 +1,7 @@
 package parsley
 
 import parsley.backend.AbstractStackMachine
+import parsley.backend.CharEof
 import parsley.backend.CharJumpTable
 import parsley.backend.CodeGenContext
 import parsley.backend.CodeGenStep
@@ -23,9 +24,11 @@ import parsley.backend.SingleCharMap
 import parsley.backend.SingleChar_
 import parsley.backend.StringToCharList
 import parsley.backend.convert
+import parsley.backend.instructions.Eof
 import parsley.backend.instructions.JumpTable
 import parsley.backend.instructions.MatchManyN_
 import parsley.backend.instructions.MatchMany_
+import parsley.backend.instructions.MkPair
 import parsley.backend.instructions.PushChunkOf
 import parsley.backend.instructions.Satisfy
 import parsley.backend.instructions.SatisfyMany
@@ -45,6 +48,7 @@ import parsley.frontend.InsertLetStep
 import parsley.frontend.LetBoundStep
 import parsley.frontend.OptimiseStep
 import parsley.frontend.ParserF
+import parsley.frontend.RelabelStep
 import parsley.frontend.fallthrough
 import parsley.frontend.small
 
@@ -62,7 +66,7 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
         .addLetInsertStep(
             InsertLetStep.fallthrough({ p ->
                 when (p) {
-                    is CharListToString -> CharListToString(callRecursive(p).unsafe())
+                    is CharListToString -> CharListToString(callRecursive(p.p).unsafe())
                     else -> null
                 }
             }, { p ->
@@ -76,6 +80,7 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
             object : OptimiseStep<Char, E> {
                 override suspend fun DeepRecursiveScope<ParserF<Char, E, Any?>, ParserF<Char, E, Any?>>.step(
                     p: ParserF<Char, E, Any?>,
+                    subs: IntMap<ParserF<Char, E, Any?>>,
                     settings: CompilerSettings<Char, E>
                 ): ParserF<Char, E, Any?> {
                     return when {
@@ -112,6 +117,22 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
                 }
             }
         ).addOptimiseStep { s, l -> replaceInstructions(s, l) }
+        .addRelabelStep(
+            object : RelabelStep<Char, E> {
+                override suspend fun DeepRecursiveScope<ParserF<Char, E, Any?>, ParserF<Char, E, Any?>>.step(
+                    p: ParserF<Char, E, Any?>,
+                    lbl: String?,
+                    subs: IntMap<ParserF<Char, E, Any?>>
+                ): ParserF<Char, E, Any?>? {
+                    return when (p) {
+                        is CharListToString -> {
+                            CharListToString(callRecursive(p.p).unsafe())
+                        }
+                        else -> null
+                    }
+                }
+            }
+        )
     return CompiledStringParser(
         parserF.compile(settings).toTypedArray()
             // .also { println(it.withIndex().map { (i, v) -> i to v }) }
@@ -193,10 +214,10 @@ fun <E> Method<Char, E>.replaceMethod() {
                 removeAt(curr)
                 add(curr, SatisfyCharMany(el.f.unsafe()))
                 if (curr + 1 < size) {
-                    if (get(curr + 1) !is parsley.backend.CharListToString) {
-                        add(curr + 1, StringToCharList())
-                    } else {
+                    if (get(curr + 1) is parsley.backend.CharListToString) {
                         removeAt(curr + 1)
+                    } else {
+                        add(curr + 1, StringToCharList())
                     }
                 }
             }
@@ -233,10 +254,10 @@ fun <E> Method<Char, E>.replaceMethod() {
                 removeAt(curr)
                 add(curr, SingleCharMany(el.i))
                 if (curr + 1 < size) {
-                    if (get(curr + 1) !is parsley.backend.CharListToString) {
-                        add(curr + 1, StringToCharList())
-                    } else {
+                    if (get(curr + 1) is parsley.backend.CharListToString) {
                         removeAt(curr + 1)
+                    } else {
+                        add(curr + 1, StringToCharList())
                     }
                 }
             }
@@ -247,10 +268,20 @@ fun <E> Method<Char, E>.replaceMethod() {
             el is PushChunkOf -> {
                 removeAt(curr)
                 add(curr, PushStringOf())
-                if (get(curr + 1) !is parsley.backend.CharListToString) {
-                    add(curr + 1, StringToCharList())
-                } else {
-                    removeAt(curr + 1)
+
+                val next = get(curr + 1)
+                when (next) {
+                    is MkPair -> {
+                        if (curr < size - 1 && get(curr + 2) is parsley.backend.CharListToString) {
+                            removeAt(curr + 2)
+                        } else {
+                            add(curr + 1, StringToCharList())
+                        }
+                    }
+                    is parsley.backend.CharListToString -> {
+                        removeAt(curr + 1)
+                    }
+                    else -> add(curr + 1, StringToCharList())
                 }
             }
             el is MatchMany_ -> {
@@ -260,6 +291,10 @@ fun <E> Method<Char, E>.replaceMethod() {
             el is MatchManyN_ -> {
                 removeAt(curr)
                 add(curr, MatchManyCharN_(el.paths.convert()))
+            }
+            el is Eof -> {
+                removeAt(curr)
+                add(curr, CharEof())
             }
         }
         curr++

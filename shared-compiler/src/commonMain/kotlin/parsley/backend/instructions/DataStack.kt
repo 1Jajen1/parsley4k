@@ -49,3 +49,13 @@ class Apply<I, E> : Instruction<I, E> {
 
     override fun toString(): String = "Apply"
 }
+
+class MkPair<I, E> : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        val b = machine.pop()
+        val a = machine.peek()
+        machine.exchange(a to b)
+    }
+
+    override fun toString(): String = "MkPair"
+}

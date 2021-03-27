@@ -11,10 +11,12 @@ import parsley.collections.IntMap
 import parsley.frontend.DefaultInsertLetStep
 import parsley.frontend.DefaultLetBoundStep
 import parsley.frontend.DefaultOptimiseStep
+import parsley.frontend.DefaultRelabelStep
 import parsley.frontend.InsertLetStep
 import parsley.frontend.LetBoundStep
 import parsley.frontend.OptimiseStep
 import parsley.frontend.ParserF
+import parsley.frontend.RelabelStep
 import parsley.frontend.findLetBound
 import parsley.frontend.insertLets
 import parsley.frontend.optimise
@@ -27,8 +29,8 @@ fun <I, E, A> ParserF<I, E, A>.compile(
     var (mainP, subs, highestL) = preprocess(settings)
 
     // Step 2: Optimise AST
-    mainP = mainP.optimise(settings.frontend.optimiseSteps, settings)
-    subs = subs.mapValues { v -> v.optimise(settings.frontend.optimiseSteps, settings) }
+    mainP = mainP.optimise(subs, settings.frontend.optimiseSteps, settings)
+    subs = subs.mapValues { v -> v.optimise(subs, settings.frontend.optimiseSteps, settings) }
 
     // Step 3: Code gen
     val (mainI, subI, l) = mainP.codeGen(subs, highestL, settings.backend.codegenSteps)
@@ -58,25 +60,29 @@ data class CompilerSettings<I, E>(
     val optimise: OptimiseSettings<I, E>
 ) {
     fun addLetFindStep(letStep: LetBoundStep<I, E>): CompilerSettings<I, E> =
-        copy(frontend = frontend.copy(letfinderSteps = frontend.letfinderSteps + letStep))
+        copy(frontend = frontend.copy(letfinderSteps = arrayOf(letStep) + frontend.letfinderSteps))
 
     fun addLetInsertStep(letStep: InsertLetStep<I, E>): CompilerSettings<I, E> =
-        copy(frontend = frontend.copy(insertletSteps = frontend.insertletSteps + letStep))
+        copy(frontend = frontend.copy(insertletSteps = arrayOf(letStep) + frontend.insertletSteps))
 
     fun addOptimiseStep(step: OptimiseStep<I, E>): CompilerSettings<I, E> =
-        copy(frontend = frontend.copy(optimiseSteps = frontend.optimiseSteps + step))
+        copy(frontend = frontend.copy(optimiseSteps = arrayOf(step) + frontend.optimiseSteps))
 
     fun addCodegenStep(step: CodeGenStep<I, E>): CompilerSettings<I, E> =
-        copy(backend = backend.copy(codegenSteps = backend.codegenSteps + step))
+        copy(backend = backend.copy(codegenSteps = arrayOf(step) + backend.codegenSteps))
 
     fun addOptimiseStep(step: BackendOptimiseStep<I, E>): CompilerSettings<I, E> =
-        copy(backend = backend.copy(optimiseSteps = backend.optimiseSteps + step))
+        copy(backend = backend.copy(optimiseSteps = arrayOf(step) + backend.optimiseSteps))
+
+    fun addRelabelStep(step: RelabelStep<I, E>): CompilerSettings<I, E> =
+        copy(frontend = frontend.copy(relabeSteps = arrayOf(step) + frontend.relabeSteps))
 }
 
 data class FrontendSettings<I, E>(
     val letfinderSteps: Array<LetBoundStep<I, E>>,
     val insertletSteps: Array<InsertLetStep<I, E>>,
-    val optimiseSteps: Array<OptimiseStep<I, E>>
+    val optimiseSteps: Array<OptimiseStep<I, E>>,
+    val relabeSteps: Array<RelabelStep<I, E>>
 )
 
 typealias Method<I, E> = MutableList<Instruction<I, E>>
@@ -102,7 +108,8 @@ fun <I, E> defaultSettings(): CompilerSettings<I, E> = CompilerSettings(
 fun <I, E> defaultFrontendSettings(): FrontendSettings<I, E> = FrontendSettings(
     letfinderSteps = arrayOf(DefaultLetBoundStep()),
     insertletSteps = arrayOf(DefaultInsertLetStep()),
-    optimiseSteps = arrayOf(DefaultOptimiseStep())
+    optimiseSteps = arrayOf(DefaultOptimiseStep()),
+    relabeSteps = arrayOf(DefaultRelabelStep())
 )
 
 fun <I, E> defaultBackendSettings(): BackendSettings<I, E> = BackendSettings(

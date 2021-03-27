@@ -1,3 +1,6 @@
+import parsley.ErrorItem
+import parsley.FancyError
+import parsley.ParseError
 import parsley.Parser
 import parsley.attempt
 import parsley.alt
@@ -14,12 +17,18 @@ import parsley.orNull
 import parsley.pure
 import parsley.void
 import parsley.compile
+import parsley.fail
+import parsley.hide
 import parsley.label
+import parsley.negLookAhead
 import parsley.orElse
 import parsley.pretty
 import parsley.recursive
+import parsley.region
 import parsley.satisfy
+import parsley.some
 import parsley.string
+import parsley.unexpected
 
 fun main() {
     val inp = jsonSample1K.toCharArray()
@@ -59,22 +68,25 @@ sealed class Json {
 
 val jsonRootParser = Parser.run {
     val jsonNull = string("null").followedBy(pure(Json.JsonNull))
-        .label("null")
     val jsonBool = string("true").followedBy(pure(Json.JsonBool(true)))
         .alt(string("false").followedBy(pure(Json.JsonBool(false))))
-        .label("bool")
     val digit: Parser<Char, Nothing, Char> = satisfy { c: Char -> c in '0'..'9' }
-        .label("digit")
     val nonZeroDigit: Parser<Char, Nothing, Char> = satisfy { c: Char -> c in '1'..'9' }
-        .label("non-zero digit")
     val sign = char('-').alt(char('+')).orNull().label("sign")
     val jsonNumber =
         sign
-            .followedBy(nonZeroDigit.followedBy(digit.many()).orElse(digit))
-            .followedBy(char('.').followedBy(digit.many()).orNull())
+            .followedBy(
+                nonZeroDigit.followedBy(digit.many())
+                    .orElse(char('0'))
+                    .label("number"))
+            .followedBy(
+                digit.negLookAhead().region {
+                    // TODO better constructors
+                    ParseError(-1, null, emptySet(), setOf(FancyError.Message("Json numbers cannot contain leading zero's except if directly followed by .")))
+                }.followedBy(char('.').followedBy(digit.some()).orNull())
+            )
             .stringOf()
             .map { Json.JsonNumber(it.toDouble()) }
-            .label("number")
     val unescapedChar = satisfy { c: Char -> c != '\\' && c != '"' }
     val specialChar = satisfy { c: Char -> c == '"' || c == '\\' || c == 'n' || c == 'r' || c == 't' || c == 'b' || c == 'f' }
 
@@ -87,7 +99,7 @@ val jsonRootParser = Parser.run {
         .label("string")
     val whitespace = satisfy { c: Char -> c == ' ' || c == '\n' || c == '\t' || c == '\r' }
         .many().void()
-        .label("whitespace")
+        .hide()
 
     lateinit var jsonArray: Parser<Char, Nothing, Json.JsonArray>
     lateinit var jsonObject: Parser<Char, Nothing, Json.JsonObject>

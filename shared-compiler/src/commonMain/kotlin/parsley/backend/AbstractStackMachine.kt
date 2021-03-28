@@ -85,7 +85,7 @@ abstract class AbstractStackMachine<I, E>(val instructions: Array<Instruction<I,
         errorUnexpected = when {
             errorUnexpected == null -> item
             item == null -> errorUnexpected
-            errorUnexpected!!.length() > item!!.length() -> errorUnexpected
+            errorUnexpected!!.length() > item.length() -> errorUnexpected
             else -> item
         }
     }

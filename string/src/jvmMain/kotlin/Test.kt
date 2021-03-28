@@ -1,12 +1,8 @@
-import parsley.ErrorItem
-import parsley.FancyError
 import parsley.ParseError
 import parsley.Parser
-import parsley.attempt
 import parsley.alt
 import parsley.char
 import parsley.choice
-import parsley.filter
 import parsley.followedBy
 import parsley.followedByDiscard
 import parsley.many
@@ -17,7 +13,6 @@ import parsley.orNull
 import parsley.pure
 import parsley.void
 import parsley.compile
-import parsley.fail
 import parsley.hide
 import parsley.label
 import parsley.negLookAhead
@@ -28,7 +23,6 @@ import parsley.region
 import parsley.satisfy
 import parsley.some
 import parsley.string
-import parsley.unexpected
 
 fun main() {
     val inp = jsonSample1K.toCharArray()
@@ -81,8 +75,7 @@ val jsonRootParser = Parser.run {
                     .label("number"))
             .followedBy(
                 digit.negLookAhead().region {
-                    // TODO better constructors
-                    ParseError(-1, null, emptySet(), setOf(FancyError.Message("Json numbers cannot contain leading zero's except if directly followed by .")))
+                    ParseError.message("Json numbers cannot contain leading zero's except if directly followed by .")
                 }.followedBy(char('.').followedBy(digit.some()).orNull())
             )
             .stringOf()

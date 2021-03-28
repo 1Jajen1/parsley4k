@@ -144,6 +144,7 @@ class CompiledStringParser<E, A>(val instr: Array<Instruction<Char, E>>) {
         val machine = StringStackMachine(instr)
         machine.input = input
         machine.execute()
+        if (machine.warnBoxing) println("Parser compiled to an instruction set that used boxing operations. Check ### for a guide how to avoid this.")
         return if (machine.status == ParseStatus.Ok) Either.Right(machine.pop().unsafe())
         else Either.Left(machine.finalError)
     }
@@ -154,11 +155,13 @@ internal class StringStackMachine<E> internal constructor(instr: Array<Instructi
 
     internal var input: CharArray = charArrayOf()
 
+    internal var warnBoxing = false
+
     override fun hasMore(): Boolean = inputOffset < input.size
-    override fun take(): Char = input[inputOffset]
+    override fun take(): Char = input[inputOffset].also { warnBoxing = true }
     override fun hasMore(n: Int): Boolean = inputOffset < input.size - (n - 1)
     override fun slice(start: Int, end: Int): Array<Char> =
-        input.slice(start, end).toTypedArray()
+        input.slice(start, end).toTypedArray().also { warnBoxing = true }
 
     fun takeP(): Char = input[inputOffset]
     fun takeP(start: Int, end: Int): CharArray = input.slice(start, end)

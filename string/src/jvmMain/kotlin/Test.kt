@@ -73,11 +73,7 @@ val jsonRootParser = Parser.run {
                 nonZeroDigit.followedBy(digit.many())
                     .orElse(char('0'))
                     .label("number"))
-            .followedBy(
-                digit.negLookAhead().region {
-                    ParseError.message("Json numbers cannot contain leading zero's except if directly followed by .")
-                }.followedBy(char('.').followedBy(digit.some()).orNull())
-            )
+            .followedBy(char('.').followedBy(digit.some()).orNull())
             .stringOf()
             .map { Json.JsonNumber(it.toDouble()) }
     val unescapedChar = satisfy { c: Char -> c != '\\' && c != '"' }

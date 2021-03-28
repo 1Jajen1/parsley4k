@@ -1,7 +1,5 @@
 package parsley
 
-import kotlin.math.max
-
 class ParseError<out I, out E>(
     val offset: Int,
     val unexpected: ErrorItem<I>?,

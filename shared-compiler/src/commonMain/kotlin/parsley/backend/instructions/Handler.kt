@@ -112,21 +112,6 @@ class RecoverWith<I, E>(val el: Any?) : Instruction<I, E> {
     override fun toString(): String = "RecoverWith($el)"
 }
 
-class Recover<I, E> : Instruction<I, E> {
-    override fun apply(machine: AbstractStackMachine<I, E>) {
-        val checkOff = machine.inputCheckStack.pop()
-        if (machine.status == ParseStatus.Err) {
-            if (checkOff == machine.inputOffset) {
-                machine.status = ParseStatus.Ok
-            } else machine.fail()
-        } else {
-            machine.handlerStack.drop()
-        }
-    }
-
-    override fun toString(): String = "Recover"
-}
-
 class JumpGoodAttempt<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         val checkOff = machine.inputCheckStack.pop()

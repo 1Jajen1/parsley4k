@@ -1,7 +1,6 @@
 package parsley.backend
 
 import parsley.ErrorItem
-import parsley.ErrorItemT
 import parsley.ParseErrorT
 import parsley.backend.instructions.AlwaysRecover
 import parsley.backend.instructions.Apply
@@ -29,7 +28,6 @@ import parsley.backend.instructions.Pop
 import parsley.backend.instructions.Push
 import parsley.backend.instructions.PushChunkOf
 import parsley.backend.instructions.PushHandler
-import parsley.backend.instructions.Recover
 import parsley.backend.instructions.RecoverAttempt
 import parsley.backend.instructions.RecoverAttemptWith
 import parsley.backend.instructions.RecoverWith
@@ -267,6 +265,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
             }
             is Eof -> {
                 ctx += parsley.backend.instructions.Eof()
+                if (!ctx.discard) ctx += Push(Unit)
             }
             else -> return false
         }
@@ -378,7 +377,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
                         callRecursive(fst)
                         ctx += JumpGood(skip)
                         ctx += Label(badLabel)
-                        if (ctx.discard) ctx += Recover()
+                        if (ctx.discard) ctx += Catch()
                         else ctx += RecoverWith(p.right.unsafe<Pure<Any?>>().a)
                         ctx += Label(skip)
                     } else {

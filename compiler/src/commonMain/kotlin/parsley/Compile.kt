@@ -125,40 +125,20 @@ class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
  * TODO:
  *
  * Optimisation ideas:
- * General:
- * EASY:
- * - SatisfyN_, SingleN_ are a slight improvement due to length checking and one instruction, next is Many_(SatisfyN_)
- *  which could be one instruction as well, just needs to two loops
- * - JumpTables could generate Consume(n: Int) instructions instead of the first Single/Satisfy, or just skip them
- *  altogether and consume inside the JumpTable.
- *  - Consuming is fine if we have no fallback or don't jump straight into Many
- *   - If we have a fallback we need to generate a Unconsume(n: Int) instruction that moves the input offset back n steps
- *   - If we jump into Many with discard the consumed input does not matter
- *   - If we jump into Many without discard we cannot consume in the JumpTable
- * - Convert Alt(Single, Single) into Satisfy, and similarly Alt(Single, Satisfy) and Alt(Satisfy, Satisfy) if their
- *  respective accept/reject tables are small-ish
- * Char/String:
- * HARD:
- * - Automatically float out a part of an alt if it is exceedingly faster than others:
- *  - This needs some sort of cost center calculation:
- *   - Most single instructions have a fixed cost, sequences of instructions have additive cost
- *   - Many and Many_ are very expensive (although Many_ is still far cheaper than Many)
- *   - PushHandler, InputCheck are expensive
- *  - Problem: This does not really work with non discard since a) we need to keep track where we push and b)
- *   pushing usually involves map/ap/select and thus has an unknown cost
- *  - Assume we have a many loop: Many(Alt(b1, b2)) and b1 is far cheaper than b2 than we may benefit from rewriting
- *   this to Alt(Many(b1), Many(Alt(b1, b2)))
- * - Generate sets of accepted and rejected chars from (Char) -> Boolean
- *  - This can then be used by jump tables and/or be used to generate fused satisfy instructions
- *   - Alt(Satisfy, Single) may be collapsed to just Satisfy with no loss of information and a fast CharSet lookup
- *   - This lookup could be faster than the initial satisfy, but may also not be, so enable only if aggressive optimization is used
- * - Collect all key chars (Single and also Satisfy if O2 is applied) and preprocess with simd like instructions
+ * - Collect all key chars (Single and also Satisfy if O2 is applied) and preprocess with simd instructions
  *  - Key chars for json are n, t, f, 0-9, -, [, ], {, },  , \n, \r, \t, \,
  *  - Since we also know which of these are only ever skipped we can preprocess and remove them as well
  * - Radix tries in jump table instructions to further eliminate the need to then check prefixes
  *  - Idea:
  *   - Use IntMap and have values be further IntMaps. Use Char.toInt as key. Lookups should be almost constant
  *  - Needs good heuristic for how large these tries should be
+ *  => Radix tries perform far worse than chained satisfy etc simply because function application is often (not always)
+ *   significantly faster than dictionary lookups.
+ * - Fuse Alt(Satisfy, Satisfy/Alt(Satisfy, Satisfy)) into one instruction. This may be beneficial if there are fast
+ *  and incorrect check functions and fallback slow and correct ones. E.g. isLatin1 orElse isLetter where isLatin1
+ *  uses a range check and isLetter a dict lookup.
+ *  - Also even if this fast/slow thinking does not apply, making it one instruction still reduces overhead of doing
+ *   stack and error recovery work (which is almost free so this is likely just a small win)
  */
 /**
  * TODO List:
@@ -166,6 +146,7 @@ class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
  * - Split of string compilation from code gen and only replace instructions after the fact
  *  - Investigate if that causes any problems with optimization...
  * - Split into modules!
+ * - Error messages
  * TODO:
  * - Investigate JumpGoodCatch vs JumpGood, Catch
  * - Add Byte parser
@@ -179,8 +160,6 @@ class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
  * - Provide a nicer api
  *  - Investigate dsl like betterParser although I do believe that is over the top
  *  - recursive could maybe be just lazy. In fact I can probably add overloaded constructors accepting both
- * - Error messages
- *  - AFTER benchmark pipeline is set up to spot regressions early
  * - Streaming parsing
  *  - Offer some built in streaming apis to cover most normal use cases:
  *   - likely needs to be platform specific...
@@ -190,24 +169,4 @@ class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
  *   - Offer push(input) to add input to the parser
  *    - This needs some analysis as to where the old string can be discarded and where it has to be retained (and to which point)
  *   - Stateful methods like SatisfyMany may need to store their state in a local var or reset the input they consumed and state they changed
- */
-
-/**
- * IDEA:
- *
- * Add a JumpTable that builds tries and a many version that specialises looping over that
- * JsonString could look like:
- *  - " -> end
- *  - \
- *      - " -> "\\\""
- *      - \ -> "\\\\"
- *      - n -> "\\\n"
- *      - ...
- *
- * Patterns to optimise:
- *  - Many(Alt) where Alt is only Single/Satisfy
- *  - ConcatString(Many(Alt)) contains branches ApR(ApR(Single(a), Single(b)), Pure(ab))
- *
- *
- *
  */

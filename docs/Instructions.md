@@ -1,4 +1,3 @@
-
 Overview of instructions and optimized versions:
 
 Control flow:

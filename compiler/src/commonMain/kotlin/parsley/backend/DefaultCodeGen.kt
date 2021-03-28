@@ -50,7 +50,6 @@ import parsley.frontend.ChunkOf
 import parsley.frontend.Empty
 import parsley.frontend.Eof
 import parsley.frontend.FailTop
-import parsley.frontend.Hide
 import parsley.frontend.Let
 import parsley.frontend.LookAhead
 import parsley.frontend.Many
@@ -61,7 +60,6 @@ import parsley.frontend.Pure
 import parsley.frontend.Satisfy
 import parsley.frontend.Select
 import parsley.frontend.Single
-import parsley.toTemplate
 import parsley.unsafe
 
 class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
@@ -243,10 +241,6 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
             // TODO
             is parsley.frontend.Label -> {
                 println("Generated label")
-                callRecursive(p.p)
-            }
-            is Hide -> {
-                println("Generated hide")
                 callRecursive(p.p)
             }
             is parsley.frontend.Catch<I, E, Any?> -> {

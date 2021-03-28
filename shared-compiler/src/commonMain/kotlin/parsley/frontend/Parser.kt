@@ -100,12 +100,8 @@ object Eof : ParserF<Nothing, Nothing, Nothing> {
 }
 
 // Failure
-class Label<out I, out E, out A>(val label: String, val p: ParserF<I, E, A>) : ParserF<I, E, A> {
+class Label<out I, out E, out A>(val label: String?, val p: ParserF<I, E, A>) : ParserF<I, E, A> {
     override fun toString(): String = "Label($label, $p)"
-}
-
-class Hide<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, A> {
-    override fun toString(): String = "Hide($p)"
 }
 
 class Catch<I, E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, Either<ParseError<I, E>, A>> {

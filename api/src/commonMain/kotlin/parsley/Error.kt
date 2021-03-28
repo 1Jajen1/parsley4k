@@ -3,13 +3,12 @@ package parsley
 import parsley.frontend.Catch
 import parsley.frontend.Fail
 import parsley.frontend.FailTop
-import parsley.frontend.Hide
 import parsley.frontend.Label
 
 // labels
 fun <I, E, A> Parser<I, E, A>.label(str: String): Parser<I, E, A> = Parser(Label(str, parserF))
 
-fun <I, E, A> Parser<I, E, A>.hide(): Parser<I, E, A> = Parser(Hide(parserF))
+fun <I, E, A> Parser<I, E, A>.hide(): Parser<I, E, A> = Parser(Label(null, parserF))
 
 // error builders
 private fun <I, E> Parser.Companion.fail(error: ParseError<I, E>): Parser<I, E, Nothing> =

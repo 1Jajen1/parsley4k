@@ -127,9 +127,6 @@ class DefaultLetBoundStep<I, E> : LetBoundStep<I, E> {
                 is Label -> {
                     callRecursive(nS to p.p)
                 }
-                is Hide -> {
-                    callRecursive(nS to p.p)
-                }
                 is Catch<I, E, Any?> -> {
                     callRecursive(nS to p.p)
                 }
@@ -287,9 +284,6 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
                 is Label -> {
                     Label(p.label, callRecursive(p.p))
                 }
-                is Hide -> {
-                    Hide(callRecursive(p.p))
-                }
                 is Catch<I, E, Any?> -> {
                     Catch(callRecursive(p.p))
                 }
@@ -312,7 +306,7 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
 
 // TODO
 fun <I, E, A> ParserF<I, E, A>.small(): Boolean = when (this) {
-    is Pure, is Satisfy<*>, is Single<*>, Empty, is Label, is Hide, Eof -> true
+    is Pure, is Satisfy<*>, is Single<*>, Empty, is Label, Eof -> true
     is Ap<I, E, *, A> -> pF.small() && pA.small()
     is ApR<I, E, *, A> -> pA.small() && pB.small()
     is ApL<I, E, A, *> -> pA.small() && pB.small()

@@ -238,11 +238,6 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 val res = inner.relabel(settings, p.label, subs)
                 callRecursive(res)
             }
-            is Hide -> {
-                val inner = callRecursive(p.p)
-                val res = inner.relabel(settings, null, subs)
-                callRecursive(res)
-            }
             is Catch<I, E, Any?> -> {
                 when (val pInner = callRecursive(p.p)) {
                     Empty -> Catch(Empty) // TODO

@@ -61,7 +61,6 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     // (p *> q) <*> r == p *> (q <*> r)
                     pf is ApR<I, E, *, *> -> {
                         val right = ApR(pf.second, pa)
-
                         callRecursive(ApR(pf.first, right))
                     }
                     // empty <*> x = empty || x <*> empty = empty
@@ -129,7 +128,6 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 when {
                     // Pure x <|> p == Pure x
                     l is Pure -> l
-                    // TODO merge errors or distinguish empty from fail
                     // empty <|> p == p
                     l is Empty -> r
                     // p <|> empty == p
@@ -218,18 +216,24 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 when (val pInner = callRecursive(p.p)) {
                     is Pure -> throw IllegalStateException("Many never consumes input and thus never finishes")
                     is Empty -> Pure(emptyList())
+                    is Many<I, E, *> -> Ap(Pure { listOf(it) }, pInner)
                     else -> Many(pInner)
                 }
             }
             is ChunkOf -> {
                 when (val pInner = callRecursive(p.inner)) {
                     Empty -> Empty
+                    is MatchOf<I, E, *> -> ChunkOf(callRecursive(pInner.inner))
+                    is ChunkOf -> pInner
                     else -> ChunkOf(pInner)
                 }
             }
             is MatchOf<I, E, *> -> {
                 when (val pInner = callRecursive(p.inner)) {
                     Empty -> Empty
+                    // TODO This breaks the CharListToString pattern ...
+                    // is ChunkOf -> Ap(Pure { a -> a to a }, pInner)
+                    is MatchOf<I, E, *> -> pInner
                     else -> MatchOf(pInner)
                 }
             }
@@ -245,6 +249,11 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     else -> Catch(pInner)
                 }
             }
+            is Unary<I, E, *, Any?> -> p.copy(callRecursive(p.inner).unsafe())
+            is Binary<I, E, *, *, Any?> -> p.copy(
+                callRecursive(p.first).unsafe(),
+                callRecursive(p.second).unsafe()
+            )
             else -> p
         }
 }

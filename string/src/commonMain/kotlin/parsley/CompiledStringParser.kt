@@ -20,7 +20,6 @@ import parsley.backend.SatisfyChars_
 import parsley.backend.SingleChar
 import parsley.backend.SingleCharMany
 import parsley.backend.SingleCharMany_
-import parsley.backend.SingleCharMap
 import parsley.backend.SingleChar_
 import parsley.backend.StringToCharList
 import parsley.backend.convert
@@ -39,7 +38,6 @@ import parsley.backend.instructions.Satisfy_
 import parsley.backend.instructions.Single
 import parsley.backend.instructions.SingleMany
 import parsley.backend.instructions.SingleMany_
-import parsley.backend.instructions.SingleMap
 import parsley.backend.instructions.SingleN_
 import parsley.backend.instructions.Single_
 import parsley.collections.IntMap
@@ -47,7 +45,6 @@ import parsley.frontend.CharListToString
 import parsley.frontend.OptimiseStep
 import parsley.frontend.ParserF
 
-// TODO Split steps into individual files, this is getting too large
 @OptIn(ExperimentalStdlibApi::class)
 fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
     val settings = defaultSettings<Char, E>()
@@ -60,7 +57,6 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
                     settings: CompilerSettings<Char, E>
                 ): ParserF<Char, E, Any?> {
                     return when {
-                        p is CharListToString -> CharListToString(callRecursive(p.inner).unsafe())
                         p is parsley.frontend.Satisfy<*> && p.match is CharPredicate && settings.optimise.analyseSatisfy.f.any { true } -> {
                             val accepted = mutableSetOf<Char>()
                             val rejected = mutableSetOf<Char>()
@@ -148,7 +144,6 @@ fun <E> Method<Char, E>.replaceMethod() {
                 table.error.expected = el.error.expected
                 add(curr, table)
             }
-            // TODO Any or all here?
             el is SatisfyN_ && el.fArr.all { it is CharPredicate } -> {
                 removeAt(curr)
                 val new = SatisfyChars_<E>(el.fArr.unsafe(), el.eArr)
@@ -191,12 +186,6 @@ fun <E> Method<Char, E>.replaceMethod() {
             el is Single -> {
                 removeAt(curr)
                 val new = SingleChar<E>(el.i)
-                new.error.expected = el.error.expected
-                add(curr, new)
-            }
-            el is SingleMap -> {
-                removeAt(curr)
-                val new = SingleCharMap<E>(el.el, el.res)
                 new.error.expected = el.error.expected
                 add(curr, new)
             }

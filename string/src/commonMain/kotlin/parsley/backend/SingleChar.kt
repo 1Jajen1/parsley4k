@@ -83,28 +83,6 @@ class SingleCharMany_<E>(val c: Char) : Instruction<Char, E> {
     override fun toString(): String = "SingleCharMany_($c)"
 }
 
-class SingleCharMap<E>(val c: Char, val res: Any?) : Instruction<Char, E>, Errors<Char, E> {
-    override fun apply(machine: AbstractStackMachine<Char, E>) {
-        val machine = machine.unsafe<StringStackMachine<E>>()
-        if (machine.hasMore()) {
-            val el = machine.takeP()
-            if (el == c) {
-                machine.consume()
-                machine.push(res)
-            } else {
-                unexpected.head = el
-                machine.failWith(error)
-            }
-        } else machine.needInput(error.expected)
-    }
-
-    override fun toString(): String = "SingleCharMap($c, $res)"
-
-    private var unexpected = CharTokensT(' ', charArrayOf())
-    override var error: ParseErrorT<Char, E> =
-        ParseErrorT(-1, unexpected, emptySet(), emptySet())
-}
-
 class CharEof<E> : Instruction<Char, E> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()

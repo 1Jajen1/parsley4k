@@ -50,7 +50,7 @@ class Satisfy_<I, E>(val f: Predicate<I>, expected: Set<ErrorItem<I>>) : Instruc
     override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
 }
 
-class Single<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, FuseMap<I, E>, Errors<I, E> {
+class Single<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.hasMore()) {
             val el = machine.take()
@@ -65,7 +65,6 @@ class Single<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, F
     }
 
     override fun toString(): String = "Single($i)"
-    override fun fuse(f: (Any?) -> Any?): Instruction<I, E> = SingleMap(i, f(i), error.expected)
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
     override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
@@ -191,27 +190,6 @@ class SatisfyMap<I, E>(val f: Predicate<I>, val g: (I) -> Any?, expected: Set<Er
     }
 
     override fun toString(): String = "SatisfyMap"
-
-    private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
-    override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
-}
-
-// TODO Add a note to the docs later that g(i) == g(j) is expected if i == j
-class SingleMap<I, E>(val el: I, val res: Any?, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I, E> {
-    override fun apply(machine: AbstractStackMachine<I, E>) {
-        if (machine.hasMore()) {
-            val i = machine.take()
-            if (el == i) {
-                machine.consume()
-                machine.push(res)
-            } else {
-                unexpected.head = i
-                machine.failWith(error)
-            }
-        } else machine.needInput(error.expected)
-    }
-
-    override fun toString(): String = "SingleMap($el, $res)"
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
     override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())

@@ -56,7 +56,7 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                         val fff = Ap(compose, pf)
                         val ff = Ap(fff, pa.first.unsafe())
 
-                        callRecursive(Ap(ff, pa.first))
+                        callRecursive(Ap(ff, pa.second))
                     }
                     // (p *> q) <*> r == p *> (q <*> r)
                     pf is ApR<I, E, *, *> -> {

@@ -5,11 +5,14 @@ import parsley.ErrorItem
 import parsley.ParseError
 import parsley.Predicate
 
-interface ParserF<out I, out E, out A>
+interface ParserF<out I, out E, out A> {
+    fun small(): Boolean
+}
 
 abstract class Unary<I, E, A, out B>(
     val inner: ParserF<I, E, A>
 ) : ParserF<I, E, B> {
+    override fun small(): Boolean = false
     abstract fun copy(inner: ParserF<I, E, A>): ParserF<I, E, B>
 }
 
@@ -17,6 +20,7 @@ abstract class Binary<I, E, A, B, out C>(
     val first: ParserF<I, E, A>,
     val second: ParserF<I, E, B>
 ) : ParserF<I, E, C> {
+    override fun small(): Boolean = false
     abstract fun copy(
         first: ParserF<I, E, A>,
         second: ParserF<I, E, B>
@@ -26,11 +30,13 @@ abstract class Binary<I, E, A, B, out C>(
 
 // Applicative hierarchy
 class Pure<out A>(val a: A) : ParserF<Nothing, Nothing, A> {
+    override fun small(): Boolean = true
     override fun toString(): String = "Pure($a)"
 }
 
 class Ap<I, E, A, B>(pF: ParserF<I, E, (A) -> B>, pA: ParserF<I, E, A>) :
     Binary<I, E, (A) -> B, A, B>(pF, pA) {
+    override fun small(): Boolean = first.small() && second.small()
     override fun copy(first: ParserF<I, E, (A) -> B>, second: ParserF<I, E, A>): ParserF<I, E, B> =
         Ap(first, second)
 
@@ -39,6 +45,7 @@ class Ap<I, E, A, B>(pF: ParserF<I, E, (A) -> B>, pA: ParserF<I, E, A>) :
 
 class ApL<I, E, A, B>(pA: ParserF<I, E, A>, pB: ParserF<I, E, B>) :
     Binary<I, E, A, B, A>(pA, pB) {
+    override fun small(): Boolean = first.small() && second.small()
     override fun copy(first: ParserF<I, E, A>, second: ParserF<I, E, B>): ParserF<I, E, A> =
         ApL(first, second)
 
@@ -47,6 +54,7 @@ class ApL<I, E, A, B>(pA: ParserF<I, E, A>, pB: ParserF<I, E, B>) :
 
 class ApR<I, E, A, B>(pA: ParserF<I, E, A>, pB: ParserF<I, E, B>) :
     Binary<I, E, A, B, B>(pA, pB) {
+    override fun small(): Boolean = first.small() && second.small()
     override fun copy(first: ParserF<I, E, A>, second: ParserF<I, E, B>): ParserF<I, E, B> =
         ApR(first, second)
     override fun toString(): String = "($first *> $second)"
@@ -70,15 +78,18 @@ class Satisfy<I>(
     val accepts: Set<I> = emptySet(),
     val rejects: Set<I> = emptySet()
 ) : ParserF<I, Nothing, I> {
+    override fun small(): Boolean = true
     override fun toString(): String = "Satisfy"
 }
 
 class Single<I>(val i: I, val expected: Set<ErrorItem<I>> = emptySet()) : ParserF<I, Nothing, I> {
+    override fun small(): Boolean = true
     override fun toString(): String = "Single($i)"
 }
 
 // Alternative
 object Empty : ParserF<Nothing, Nothing, Nothing> {
+    override fun small(): Boolean = true
     override fun toString(): String = "Empty"
 }
 
@@ -114,16 +125,20 @@ class Attempt<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, A>(p) {
 }
 
 // Recursion
-class Lazy<out I, out E, out A>(val f: () -> ParserF<I, E, A>) : ParserF<I, E, A> {
+class Lazy<out I, out E, out A>(f: () -> ParserF<I, E, A>) : ParserF<I, E, A> {
+    val p by lazy(f)
+    override fun small(): Boolean = false
     override fun toString(): String = "Lazy(...)"
 }
 
 class Let(val recursive: Boolean, val sub: Int) : ParserF<Nothing, Nothing, Nothing> {
+    override fun small(): Boolean = true
     override fun toString(): String = "Let($recursive, $sub)"
 }
 
 // Intrinsics for better performance
 class Many<I, E, A>(val p: ParserF<I, E, A>) : Unary<I, E, A, List<A>>(p) {
+    override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, List<A>> =
         Many(inner)
 
@@ -131,6 +146,7 @@ class Many<I, E, A>(val p: ParserF<I, E, A>) : Unary<I, E, A, List<A>>(p) {
 }
 
 class ChunkOf<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, List<I>>(p) {
+    override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, Any?>): ParserF<I, E, List<I>> =
         ChunkOf(inner)
 
@@ -138,6 +154,7 @@ class ChunkOf<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, List<I>>(p) {
 }
 
 class MatchOf<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, Pair<List<I>, A>>(p) {
+    override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, Pair<List<I>, A>> =
         MatchOf(inner)
 
@@ -145,11 +162,13 @@ class MatchOf<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, Pair<List<I>, A>>(p
 }
 
 object Eof : ParserF<Nothing, Nothing, Nothing> {
+    override fun small(): Boolean = true
     override fun toString(): String = "Eof"
 }
 
 // Failure
 class Label<I, E, A>(val label: String?, p: ParserF<I, E, A>) : Unary<I, E, A, A>(p) {
+    override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, A> =
         Label(label, inner)
 
@@ -165,9 +184,11 @@ class Catch<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, Either<ParseError<I, 
 
 // Fail is just like Empty with an error however it guarantees a stable offset position and is not aggressively optimized
 class Fail<I, E>(val err: ParseError<I, E>) : ParserF<I, E, Nothing> {
+    override fun small(): Boolean = true
     override fun toString(): String = "Fail"
 }
 
 object FailTop: ParserF<Nothing, Nothing, Nothing> {
+    override fun small(): Boolean = true
     override fun toString(): String = "FailTop"
 }

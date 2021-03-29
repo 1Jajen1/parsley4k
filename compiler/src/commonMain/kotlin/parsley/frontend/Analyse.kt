@@ -91,7 +91,7 @@ class DefaultLetBoundStep<I, E> : LetBoundStep<I, E> {
                     callRecursive(nS to p.second)
                 }
                 is Lazy -> {
-                    callRecursive(nS to p.f.invoke())
+                    callRecursive(nS to p.p)
                 }
                 else -> Unit
             }
@@ -138,42 +138,6 @@ interface InsertLetStep<I, E> {
     companion object
 }
 
-@OptIn(ExperimentalStdlibApi::class)
-inline fun <I, E> InsertLetStep.Companion.fallthrough(
-    crossinline f: suspend DeepRecursiveScope<ParserF<I, E, Any?>, ParserF<I, E, Any?>>.(ParserF<I, E, Any?>) -> ParserF<I, E, Any?>?,
-    crossinline isSmall: (ParserF<I, E, Any?>) -> Boolean
-): InsertLetStep<I, E> =
-    object : InsertLetStep<I, E> {
-        override suspend fun DeepRecursiveScope<ParserF<I, E, Any?>, ParserF<I, E, Any?>>.step(
-            p: ParserF<I, E, Any?>,
-            letBound: Set<ParserF<I, E, Any?>>,
-            recursive: Set<ParserF<I, E, Any?>>,
-            subParsers: IntMap<ParserF<I, E, Any?>>,
-            handled: MutableMap<ParserF<I, E, Any?>, Int>,
-            mkLabel: () -> Int
-        ): ParserF<I, E, Any?>? {
-            val bound = letBound.contains(p)
-            val rec = recursive.contains(p)
-
-            return if (bound && !isSmall(p)) {
-                val newLabel =
-                    if (handled.containsKey(p)) handled[p]!!
-                    else {
-                        when (val new = f(p)) {
-                            null -> return null
-                            else -> {
-                                mkLabel().also {
-                                    subParsers[it] = new
-                                    handled[p] = it
-                                }
-                            }
-                        }
-                    }
-                Let(rec, newLabel)
-            } else f(p)
-        }
-    }
-
 class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
     @OptIn(ExperimentalStdlibApi::class)
     override suspend fun DeepRecursiveScope<ParserF<I, E, Any?>, ParserF<I, E, Any?>>.step(
@@ -206,8 +170,8 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
                 }
                 is Lazy -> {
                     if (handled.containsKey(p).not())
-                        callRecursive(p.f.invoke())
-                    else p
+                        callRecursive(p.p)
+                    else p // TODO wtf? This should always result in errors, why is this here?
                 }
                 else -> p
             }
@@ -218,21 +182,15 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
                 else {
                     mkLabel().also {
                         handled[p] = it
-                        subParsers[it] = new(p, handled)
+                        val subP = new(p, handled)
+                        if (!rec && subP.small()) {
+                            handled.remove(p)
+                            return subP
+                        }
+                        subParsers[it] = subP
                     }
                 }
             Let(rec, newLabel)
         } else new(p, handled)
     }
-}
-
-// TODO
-fun <I, E, A> ParserF<I, E, A>.small(): Boolean = when (this) {
-    is Pure, is Satisfy<*>, is Single<*>, Empty, is Label, Eof -> true
-    is Ap<I, E, *, A> -> first.small() && second.small()
-    is ApR<I, E, *, A> -> first.small() && second.small()
-    is ApL<I, E, A, *> -> first.small() && second.small()
-    is ChunkOf -> inner.small()
-    is MatchOf<I, E, *> -> inner.small()
-    else -> false
 }

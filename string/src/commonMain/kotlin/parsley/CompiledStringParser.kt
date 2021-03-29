@@ -44,13 +44,8 @@ import parsley.backend.instructions.SingleN_
 import parsley.backend.instructions.Single_
 import parsley.collections.IntMap
 import parsley.frontend.CharListToString
-import parsley.frontend.InsertLetStep
-import parsley.frontend.LetBoundStep
 import parsley.frontend.OptimiseStep
 import parsley.frontend.ParserF
-import parsley.frontend.RelabelStep
-import parsley.frontend.fallthrough
-import parsley.frontend.small
 
 // TODO Split steps into individual files, this is getting too large
 @OptIn(ExperimentalStdlibApi::class)

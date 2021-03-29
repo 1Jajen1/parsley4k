@@ -126,6 +126,8 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 val l = callRecursive(p.first)
                 val r = callRecursive(p.second)
                 when {
+                    // p <|> p = p
+                    l == r -> l
                     // Pure x <|> p == Pure x
                     l is Pure -> l
                     // empty <|> p == p
@@ -143,7 +145,7 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                         val inner = Alt(left, r.inner)
                         callRecursive(LookAhead(inner))
                     }
-                    // NotFollowedBy p <|> NotFollowedBy q = NotFollowedBy (LookAhead p *> LookAhead q)
+                    // NegLookAhead p <|> NegLookAhead q = NegLookAhead (LookAhead p *> LookAhead q)
                     l is NegLookAhead && r is NegLookAhead -> {
                         val inner = ApR(LookAhead(l.inner), LookAhead(r.inner))
                         callRecursive(NegLookAhead(inner))
@@ -213,7 +215,7 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 }
             }
             is Many<I, E, *> -> {
-                when (val pInner = callRecursive(p.p)) {
+                when (val pInner = callRecursive(p.inner)) {
                     is Pure -> throw IllegalStateException("Many never consumes input and thus never finishes")
                     is Empty -> Pure(emptyList())
                     is Many<I, E, *> -> Ap(Pure { listOf(it) }, pInner)

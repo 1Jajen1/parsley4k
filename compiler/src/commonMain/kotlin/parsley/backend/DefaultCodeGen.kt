@@ -182,8 +182,8 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                 }
             }
             is Many<I, E, *> -> {
-                val path = mkPath(p.p, ctx.subs)
-                val paths = mkPaths(p.p, ctx.subs)
+                val path = mkPath(p.inner, ctx.subs)
+                val paths = mkPaths(p.inner, ctx.subs)
                 if (path != null) {
                     if (path.size == 1) {
                         when (val el = path[0]) {
@@ -206,7 +206,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                     val jumpL = ctx.mkLabel()
                     ctx += InputCheck(handler)
                     ctx += Label(jumpL)
-                    callRecursive(p.p)
+                    callRecursive(p.inner)
                     ctx += Label(handler)
                     if (ctx.discard) {
                         ctx += Many_(jumpL)

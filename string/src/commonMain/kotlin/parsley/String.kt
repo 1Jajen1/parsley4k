@@ -9,9 +9,9 @@ import parsley.frontend.Satisfy
 fun Parser.Companion.char(c: Char): Parser<Char, Nothing, Char> = single(c)
 
 fun Parser.Companion.string(str: String): Parser<Char, Nothing, String> =
-    str.reversed().fold(Parser.pure("").unsafe<Parser<Char, Nothing, String>>()) { acc, c ->
+    str.reversed().fold(Parser.pure(str).unsafe<Parser<Char, Nothing, String>>()) { acc, c ->
         Parser.single(c).followedBy(acc)
-    }.followedBy(Parser.pure(str))
+    }
 
 fun <E> Parser<Char, E, Char>.many(): Parser<Char, E, String> =
     Parser(CharListToString(Many(parserF)))

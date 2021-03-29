@@ -28,6 +28,8 @@ fun <I, E, A> ParserF<I, E, A>.compile(
     // Step 1: Replace let bound parsers. This prevents problems with recursion inside Lazy(...)
     var (mainP, subs, highestL) = preprocess(settings)
 
+    // TODO configure debug logging
+
     // Step 2: Optimise AST
     mainP = mainP.optimise(subs, settings.frontend.optimiseSteps, settings)
     subs = subs.mapValues { v -> v.optimise(subs, settings.frontend.optimiseSteps, settings) }

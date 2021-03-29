@@ -34,8 +34,8 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
     ): ParserF<I, E, Any?> =
         when (p) {
             is Ap<I, E, *, Any?> -> {
-                val pf = callRecursive(p.pF).unsafe<ParserF<I, E, (Any?) -> Any>>()
-                val pa = callRecursive(p.pA)
+                val pf = callRecursive(p.first).unsafe<ParserF<I, E, (Any?) -> Any>>()
+                val pa = callRecursive(p.second)
                 when {
                     // Pure f <*> Pure a = Pure (f a)
                     pf is Pure && pa is Pure -> {
@@ -54,15 +54,15 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     pa is Ap<I, E, *, Any?> -> {
                         val compose = Pure { f: (Any?) -> Any? -> { g: (Any?) -> Any? -> f.compose(g) } }
                         val fff = Ap(compose, pf)
-                        val ff = Ap(fff, pa.pF.unsafe())
+                        val ff = Ap(fff, pa.first.unsafe())
 
-                        callRecursive(Ap(ff, pa.pA))
+                        callRecursive(Ap(ff, pa.first))
                     }
                     // (p *> q) <*> r == p *> (q <*> r)
-                    pf is ApR<I, E, *, (Any?) -> Any?> -> {
-                        val right = ApR(pf.pB, pa)
+                    pf is ApR<I, E, *, *> -> {
+                        val right = ApR(pf.second, pa)
 
-                        callRecursive(ApR(pf.pA, right))
+                        callRecursive(ApR(pf.first, right))
                     }
                     // empty <*> x = empty || x <*> empty = empty
                     pf is Empty -> pf
@@ -71,26 +71,26 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 }
             }
             is ApL<I, E, Any?, *> -> {
-                val l = callRecursive(p.pA)
-                val r = callRecursive(p.pB)
+                val l = callRecursive(p.first)
+                val r = callRecursive(p.second)
                 when {
                     // p <* Pure _ = p
                     r is Pure -> l
                     // Pure x <* p = p *> Pure x
                     l is Pure -> callRecursive(ApR(r, l))
                     // p <* (q *> Pure _) = p <* q
-                    r is ApR<I, E, *, *> && r.pB is Pure -> {
-                        callRecursive(ApL(l, r.pA))
+                    r is ApR<I, E, *, *> && r.second is Pure -> {
+                        callRecursive(ApL(l, r.first))
                     }
                     // p <* (Pure _ <* q) = p <* q
-                    r is ApL<I, E, *, *> && r.pA is Pure -> {
-                        callRecursive(ApL(l, r.pB))
+                    r is ApL<I, E, *, *> && r.first is Pure -> {
+                        callRecursive(ApL(l, r.second))
                     }
                     // (p <* q) <* r == p <* (q <* r)
                     l is ApL<I, E, *, *> -> {
-                        val right = ApL(l.pB, r)
+                        val right = ApL(l.second, r)
 
-                        callRecursive(ApL(l.pA, right))
+                        callRecursive(ApL(l.first, right))
                     }
                     // empty <* p == p && p <* empty == p
                     l is Empty -> l
@@ -99,23 +99,23 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 }
             }
             is ApR<I, E, *, Any?> -> {
-                val l = callRecursive(p.pA)
-                val r = callRecursive(p.pB)
+                val l = callRecursive(p.first)
+                val r = callRecursive(p.second)
                 when {
                     // Pure _ *> p == p
                     l is Pure -> r
                     // (p *> Pure _) *> q == p *> q
-                    l is ApR<I, E, *, *> && l.pB is Pure -> {
-                        callRecursive(ApR(l.pA, r))
+                    l is ApR<I, E, *, *> && l.second is Pure -> {
+                        callRecursive(ApR(l.first, r))
                     }
                     // (Pure _ <* p) *> q == p *> q
-                    l is ApL<I, E, *, *> && l.pA is Pure -> {
-                        callRecursive(ApR(l.pB, r))
+                    l is ApL<I, E, *, *> && l.first is Pure -> {
+                        callRecursive(ApR(l.second, r))
                     }
                     // p *> (q *> r) == (p *> q) *> r
                     r is ApR<I, E, *, Any?> -> {
-                        val left = ApR(l, r.pA)
-                        callRecursive(ApR(left, r.pB))
+                        val left = ApR(l, r.first)
+                        callRecursive(ApR(left, r.second))
                     }
                     // empty *> p && p *> empty == empty
                     l is Empty -> l
@@ -124,8 +124,8 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 }
             }
             is Alt -> {
-                val l = callRecursive(p.left)
-                val r = callRecursive(p.right)
+                val l = callRecursive(p.first)
+                val r = callRecursive(p.second)
                 when {
                     // Pure x <|> p == Pure x
                     l is Pure -> l
@@ -136,26 +136,26 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     r is Empty -> l
                     // (p <|> q) <|> r = p <|> (q <|> r)
                     l is Alt -> {
-                        val right = Alt(l.right, r)
-                        callRecursive(Alt(l.left, right))
+                        val right = Alt(l.second, r)
+                        callRecursive(Alt(l.first, right))
                     }
                     // LookAhead p <|> LookAhead q = LookAhead (Attempt p <|> q)
                     l is LookAhead && r is LookAhead -> {
-                        val left = Attempt(l.p)
-                        val inner = Alt(left, r.p)
+                        val left = Attempt(l.inner)
+                        val inner = Alt(left, r.inner)
                         callRecursive(LookAhead(inner))
                     }
                     // NotFollowedBy p <|> NotFollowedBy q = NotFollowedBy (LookAhead p *> LookAhead q)
                     l is NegLookAhead && r is NegLookAhead -> {
-                        val inner = ApR(LookAhead(l.p), LookAhead(r.p))
+                        val inner = ApR(LookAhead(l.inner), LookAhead(r.inner))
                         callRecursive(NegLookAhead(inner))
                     }
                     else -> Alt(l, r)
                 }
             }
             is Select<I, E, *, Any?> -> {
-                val l = callRecursive(p.pEither).unsafe<ParserF<I, E, Either<Any?, Any?>>>()
-                val r = callRecursive(p.pIfLeft).unsafe<ParserF<I, E, (Any?) -> Any?>>()
+                val l = callRecursive(p.first).unsafe<ParserF<I, E, Either<Any?, Any?>>>()
+                val r = callRecursive(p.second).unsafe<ParserF<I, E, (Any?) -> Any?>>()
                 when {
                     // Select (Pure (Left x)) ifL = iFl <*> Pure x
                     l is Pure && l.a is Either.Left<Any?> -> {
@@ -167,13 +167,13 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     }
                     // Select p (Pure f) = (\e -> either f id) <$> p
                     r is Pure -> {
-                        callRecursive(Ap(Pure(r.a), p.pEither))
+                        callRecursive(Ap(Pure(r.a), p.first))
                     }
                     else -> Select(l, r)
                 }
             }
             is LookAhead -> {
-                when (val pInner = callRecursive(p.p)) {
+                when (val pInner = callRecursive(p.inner)) {
                     // LookAhead (Pure x) == Pure x
                     is Pure -> pInner
                     // LookAhead Empty = Empty
@@ -186,18 +186,18 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 }
             }
             is NegLookAhead -> {
-                when (val pInner = callRecursive(p.p)) {
+                when (val pInner = callRecursive(p.inner)) {
                     // NotFollowedBy (Pure _) = Empty
                     is Pure -> Empty
                     // NotFollowedBy Empty = Pure Unit
                     is Empty -> Pure(Unit)
                     // NotFollowedBy (NotFollowedBy p) == LookAhead p
-                    is NegLookAhead -> LookAhead(pInner.p)
+                    is NegLookAhead -> LookAhead(pInner.inner)
                     // NotFollowedBy (Try p <|> q) == NotFollowedBy p *> NotFollowedBy q
                     is Alt -> {
-                        if (pInner.left is Attempt) {
-                            val l = NegLookAhead(pInner.left.unsafe<Attempt<I, E, Any?>>().p)
-                            val r = NegLookAhead(pInner.right)
+                        if (pInner.first is Attempt) {
+                            val l = NegLookAhead(pInner.first.unsafe<Attempt<I, E, Any?>>().inner)
+                            val r = NegLookAhead(pInner.second)
                             callRecursive(ApR(l, r))
                         } else NegLookAhead(pInner)
                     }
@@ -205,7 +205,7 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 }
             }
             is Attempt -> {
-                when (val pInner = callRecursive(p.p)) {
+                when (val pInner = callRecursive(p.inner)) {
                     is Satisfy<*> -> pInner.unsafe()
                     is Single<*> -> pInner
                     is Pure -> pInner
@@ -214,7 +214,7 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     else -> Attempt(pInner)
                 }
             }
-            is Many<I, E, Any?> -> {
+            is Many<I, E, *> -> {
                 when (val pInner = callRecursive(p.p)) {
                     is Pure -> throw IllegalStateException("Many never consumes input and thus never finishes")
                     is Empty -> Pure(emptyList())
@@ -222,24 +222,24 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                 }
             }
             is ChunkOf -> {
-                when (val pInner = callRecursive(p.p)) {
+                when (val pInner = callRecursive(p.inner)) {
                     Empty -> Empty
                     else -> ChunkOf(pInner)
                 }
             }
-            is MatchOf<I, E, Any?> -> {
-                when (val pInner = callRecursive(p.p)) {
+            is MatchOf<I, E, *> -> {
+                when (val pInner = callRecursive(p.inner)) {
                     Empty -> Empty
                     else -> MatchOf(pInner)
                 }
             }
             is Label -> {
-                val inner = callRecursive(p.p)
+                val inner = callRecursive(p.inner)
                 val res = inner.relabel(settings, p.label, subs)
                 callRecursive(res)
             }
-            is Catch<I, E, Any?> -> {
-                when (val pInner = callRecursive(p.p)) {
+            is Catch<I, E, *> -> {
+                when (val pInner = callRecursive(p.inner)) {
                     Empty -> Catch(Empty) // TODO
                     is Pure -> pInner
                     else -> Catch(pInner)
@@ -278,7 +278,7 @@ class DefaultRelabelStep<I, E>: RelabelStep<I, E> {
         subs: IntMap<ParserF<I, E, Any?>>
     ): ParserF<I, E, Any?>? {
         return when (p) {
-            is Alt -> Alt(callRecursive(p.left), callRecursive(p.right))
+            is Alt -> Alt(callRecursive(p.first), callRecursive(p.second))
             is Satisfy<*> -> Satisfy<I>(
                 p.match.unsafe(),
                 lbl?.let { setOf(ErrorItem.Label(it)) } ?: emptySet(),
@@ -288,17 +288,13 @@ class DefaultRelabelStep<I, E>: RelabelStep<I, E> {
                 p.i.unsafe(),
                 lbl?.let { setOf(ErrorItem.Label(it)) } ?: emptySet()
             )
-            is Label -> callRecursive(p.p)
-            is ApR<I, E, *, Any?> -> ApR(callRecursive(p.pA), p.pB)
-            is ApL<I, E, Any?, *> -> ApL(callRecursive(p.pA), p.pB)
             is Ap<I, E, *, Any?> ->
-                if (p.pF is Pure) Ap(p.pF, callRecursive(p.pA).unsafe())
-                else Ap(callRecursive(p.pF).unsafe(), p.pA)
-            is ChunkOf -> ChunkOf(callRecursive(p.p))
-            is MatchOf<I, E, Any?> -> MatchOf(callRecursive(p.p))
-            is Select<I, E, *, Any?> -> Select(callRecursive(p.pEither).unsafe(), p.pIfLeft)
-            is Catch<I, E, Any?> -> Catch(callRecursive(p.p))
-            is Many<I, E, Any?>, is Pure, is Fail, is FailTop ->  p
+                if (p.first is Pure) Ap(p.first, callRecursive(p.second).unsafe())
+                else Ap(callRecursive(p.first).unsafe(), p.second)
+            is Many<I, E, *>, is Pure, is Fail, is FailTop ->  p
+            // TODO double check if I need more exceptions here
+            is Unary<I, E, *, Any?> -> p.copy(callRecursive(p.inner).unsafe())
+            is Binary<I, E, *, *, Any?> -> p.copy(callRecursive(p.first).unsafe(), p.second.unsafe())
             // Why not relabel Let by relabelling the referenced parser?
             // Well the problem is multiple labeled parsers may use the same let bound one, hence we can't
             // guarantee our label remains the only one and we'd overwrite labels.

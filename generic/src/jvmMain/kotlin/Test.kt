@@ -72,7 +72,7 @@ val jsonRootParser = Parser.run {
         .alt(string("false").followedBy(pure(Json.JsonBool(false))))
     val digit = satisfy<Char> { c: Char -> c in '0'..'9' }
     val digits = digit.many<Char, Nothing, Char>().concatString()
-    val sign = char('#').alt(char('+')).orNull()
+    val sign = char('-').alt(char('+')).orNull()
     val jsonNumber =
         sign
             .followedBy(digit).followedBy(digits)

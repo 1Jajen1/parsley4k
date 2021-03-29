@@ -1,5 +1,7 @@
 package parsley.frontend
 
-class CharListToString<E>(val p: ParserF<Char, E, List<Char>>) : ParserF<Char, E, String> {
-    override fun toString(): String = "CharListToString($p)"
+class CharListToString<E>(p: ParserF<Char, E, List<Char>>) : Unary<Char, E, List<Char>, String>(p) {
+    override fun copy(inner: ParserF<Char, E, List<Char>>): ParserF<Char, E, String> =
+        CharListToString(inner)
+    override fun toString(): String = "CharListToString($inner)"
 }

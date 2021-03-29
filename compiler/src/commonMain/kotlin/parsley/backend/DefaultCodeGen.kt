@@ -46,6 +46,7 @@ import parsley.frontend.Ap
 import parsley.frontend.ApL
 import parsley.frontend.ApR
 import parsley.frontend.Attempt
+import parsley.frontend.Binary
 import parsley.frontend.ChunkOf
 import parsley.frontend.Empty
 import parsley.frontend.Eof
@@ -60,6 +61,7 @@ import parsley.frontend.Pure
 import parsley.frontend.Satisfy
 import parsley.frontend.Select
 import parsley.frontend.Single
+import parsley.frontend.Unary
 import parsley.unsafe
 
 class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
@@ -73,26 +75,26 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                 if (!ctx.discard) ctx += Push(p.a)
             }
             is Ap<I, E, *, Any?> -> {
-                if (p.pF is Pure) {
-                    callRecursive(p.pA)
-                    if (!ctx.discard) ctx += Map(p.pF.unsafe<Pure<(Any?) -> Any?>>().a)
+                if (p.first is Pure) {
+                    callRecursive(p.second)
+                    if (!ctx.discard) ctx += Map(p.first.unsafe<Pure<(Any?) -> Any?>>().a)
                 } else {
-                    callRecursive(p.pF)
-                    callRecursive(p.pA)
+                    callRecursive(p.first)
+                    callRecursive(p.second)
                     if (!ctx.discard) ctx += Apply()
                 }
             }
             is ApL<I, E, Any?, *> -> {
-                callRecursive(p.pA)
+                callRecursive(p.first)
                 ctx.withDiscard {
-                    callRecursive(p.pB)
+                    callRecursive(p.second)
                 }
             }
             is ApR<I, E, *, Any?> -> {
                 ctx.withDiscard {
-                    callRecursive(p.pA)
+                    callRecursive(p.first)
                 }
-                callRecursive(p.pB)
+                callRecursive(p.second)
             }
             is Let -> {
                 if (ctx.discard) {
@@ -111,7 +113,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
             is Attempt -> {
                 val l = ctx.mkLabel()
                 ctx += InputCheck(l)
-                callRecursive(p.p)
+                callRecursive(p.inner)
                 ctx += Label(l)
                 ctx += ResetOffsetOnFail()
             }
@@ -136,7 +138,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
             is LookAhead -> {
                 val l = ctx.mkLabel()
                 ctx += InputCheck(l)
-                callRecursive(p.p)
+                callRecursive(p.inner)
                 ctx += Label(l)
                 ctx += ResetOffset()
             }
@@ -144,7 +146,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                 val badLabel = ctx.mkLabel()
                 ctx += InputCheck(badLabel)
                 ctx.withDiscard {
-                    callRecursive(p.p)
+                    callRecursive(p.inner)
                 }
                 ctx += Label(badLabel)
                 ctx += ResetOnFailAndFailOnOk()
@@ -152,9 +154,9 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
             }
             is Select<I, E, *, Any?> -> {
                 ctx.withDiscard(false) {
-                    callRecursive(p.pEither)
+                    callRecursive(p.first)
                 }
-                when (val left = p.pIfLeft) {
+                when (val left = p.second) {
                     Empty -> {
                         ctx += FailIfLeft()
                         if (ctx.discard) ctx += Pop() // TODO
@@ -179,7 +181,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                     }
                 }
             }
-            is Many<I, E, Any?> -> {
+            is Many<I, E, *> -> {
                 val path = mkPath(p.p, ctx.subs)
                 val paths = mkPaths(p.p, ctx.subs)
                 if (path != null) {
@@ -215,24 +217,24 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
             }
             is ChunkOf -> {
                 if (ctx.discard) {
-                    callRecursive(p.p)
+                    callRecursive(p.inner)
                 } else {
                     val handler = ctx.mkLabel()
                     ctx += InputCheck(handler)
                     ctx.withDiscard {
-                        callRecursive(p.p)
+                        callRecursive(p.inner)
                     }
                     ctx += Label(handler)
                     ctx += PushChunkOf()
                 }
             }
-            is MatchOf<I, E, Any?> -> {
+            is MatchOf<I, E, *> -> {
                 if (ctx.discard) {
-                    callRecursive(p.p)
+                    callRecursive(p.inner)
                 } else {
                     val handler = ctx.mkLabel()
                     ctx += InputCheck(handler)
-                    callRecursive(p.p)
+                    callRecursive(p.inner)
                     ctx += Label(handler)
                     ctx += PushChunkOf()
                     ctx += MkPair()
@@ -241,12 +243,12 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
             // TODO
             is parsley.frontend.Label -> {
                 println("Generated label")
-                callRecursive(p.p)
+                callRecursive(p.inner)
             }
-            is parsley.frontend.Catch<I, E, Any?> -> {
+            is parsley.frontend.Catch<I, E, *> -> {
                 val hdl = ctx.mkLabel()
                 ctx += PushHandler(hdl)
-                callRecursive(p.p)
+                callRecursive(p.inner)
                 ctx += Label(hdl)
                 if (ctx.discard) {
                     ctx += AlwaysRecover()
@@ -282,7 +284,7 @@ private fun <I, E> mkPath(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, Any
             }
             is Pure -> break@l
             is ApR<I, E, *, Any?> -> {
-                var l = curr.pA
+                var l = curr.first
                 val lbuf = mutableListOf<Matcher<I>>()
                 i@ while (true) {
                     when (l) {
@@ -296,7 +298,7 @@ private fun <I, E> mkPath(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, Any
                         }
                         Eof -> lbuf.add(Matcher.Eof())
                         is ApR<I, E, *, Any?> -> {
-                            when (val el = l.pB) {
+                            when (val el = l.second) {
                                 is Satisfy<*> -> {
                                     lbuf.add(Matcher.Sat(el.match.unsafe(), el.expected.unsafe()))
                                 }
@@ -305,16 +307,16 @@ private fun <I, E> mkPath(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, Any
                                 }
                                 else -> return null
                             }
-                            l = l.pA
+                            l = l.first
                         }
-                        is parsley.frontend.Label -> l = l.p
+                        is parsley.frontend.Label -> l = l.inner
                         else -> return null
                     }
                 }
                 buf.addAll(lbuf.reversed())
-                curr = curr.pB
+                curr = curr.second
             }
-            is parsley.frontend.Label -> curr = curr.p
+            is parsley.frontend.Label -> curr = curr.inner
             is Let -> if (!curr.recursive) curr = subs[curr.sub] else return null
             else -> return null
         }
@@ -326,8 +328,8 @@ private fun <I, E> mkPaths(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, An
     val buf = mutableListOf<Array<Matcher<I>>>()
     var curr = p
     while (curr is Alt) {
-        mkPath(curr.left, subs)?.let(buf::add) ?: return null
-        curr = curr.right
+        mkPath(curr.first, subs)?.let(buf::add) ?: return null
+        curr = curr.second
     }
     mkPath(curr, subs)?.let(buf::add) ?: return null
     return buf.toTypedArray()
@@ -345,14 +347,14 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
             1 -> callRecursive(xs.first())
             else -> {
                 val fst = xs.first()
-                if (p.left is Attempt) {
-                    if (p.right is Pure) {
+                if (p.first is Attempt) {
+                    if (p.second is Pure) {
                         val badLabel = ctx.mkLabel()
                         ctx += InputCheck(badLabel)
                         callRecursive(fst)
                         ctx += Label(badLabel)
                         if (ctx.discard) ctx += RecoverAttempt()
-                        else ctx += RecoverAttemptWith(p.right.unsafe<Pure<Any?>>().a)
+                        else ctx += RecoverAttemptWith(p.second.unsafe<Pure<Any?>>().a)
                     } else {
                         val skip = ctx.mkLabel()
                         val badLabel = ctx.mkLabel()
@@ -364,7 +366,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
                         ctx += Label(skip)
                     }
                 } else {
-                    if (p.right is Pure) {
+                    if (p.second is Pure) {
                         val skip = ctx.mkLabel()
                         val badLabel = ctx.mkLabel()
                         ctx += InputCheck(badLabel)
@@ -372,7 +374,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
                         ctx += JumpGood(skip)
                         ctx += Label(badLabel)
                         if (ctx.discard) ctx += Catch()
-                        else ctx += RecoverWith(p.right.unsafe<Pure<Any?>>().a)
+                        else ctx += RecoverWith(p.second.unsafe<Pure<Any?>>().a)
                         ctx += Label(skip)
                     } else {
                         val skip = ctx.mkLabel()
@@ -390,7 +392,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
         }
 
     when {
-        table.size <= 1 -> asChoice(listOf(p.left, p.right))
+        table.size <= 1 -> asChoice(listOf(p.first, p.second))
         else -> {
             val end = ctx.mkLabel()
             val labels = table.mapValues { ctx.mkLabel() }
@@ -405,7 +407,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
                 if (xs.first() is Attempt) {
                     val l = ctx.mkLabel()
                     ctx += InputCheck(l)
-                    asChoice(listOf(xs.first().unsafe<Attempt<I, E, Any?>>().p) + xs.drop(1))
+                    asChoice(listOf(xs.first().unsafe<Attempt<I, E, Any?>>().inner) + xs.drop(1))
                     ctx += JumpGoodAttempt(end)
                 } else {
                     asChoice(xs)
@@ -435,15 +437,15 @@ private fun <I, E> toJumpTable(
     var curr: ParserF<I, E, Any?> = p
     val expectedBuf = mutableSetOf<ErrorItem<I>>()
     while (curr is Alt) {
-        curr.left.findLeading(subs)?.let { (els, expected) ->
+        curr.first.findLeading(subs)?.let { (els, expected) ->
             els.forEach {
-                val el = curr.unsafe<Alt<I, E, Any?>>().left
+                val el = curr.unsafe<Alt<I, E, Any?>>().first
                 if (table.containsKey(it)) table[it]!!.add(el)
                 else table[it] = mutableListOf(el)
             }
-            expectedBuf.addAll(getExpected(curr.unsafe<Alt<I, E, Any?>>().left, subs) ?: expected)
-        } ?: fallback.add(curr.left)
-        curr = curr.right
+            expectedBuf.addAll(getExpected(curr.unsafe<Alt<I, E, Any?>>().first, subs) ?: expected)
+        } ?: fallback.add(curr.first)
+        curr = curr.second
     }
     curr.findLeading(subs)?.let { (els, expected) ->
         els.forEach {
@@ -491,16 +493,14 @@ private tailrec fun <I, E> ParserF<I, E, Any?>.findLeading(subs: IntMap<ParserF<
     when (this) {
         is Satisfy<*> -> emptySet<I>() to expected.unsafe()
         is Single<*> -> setOf(i.unsafe<I>()) to expected.unsafe()
-        is Attempt -> p.findLeading(subs)
         is Ap<I, E, *, Any?> -> {
-            if (pF is Pure) pA.findLeading(subs)
-            else pF.findLeading(subs)
+            if (first is Pure) second.findLeading(subs)
+            else first.findLeading(subs)
         }
-        is ApR<I, E, *, Any?> -> pA.findLeading(subs)
-        is ApL<I, E, Any?, *> -> pA.findLeading(subs)
-        is ChunkOf -> p.findLeading(subs)
-        is MatchOf<I, E, Any?> -> p.findLeading(subs)
-        is parsley.frontend.Label -> p.findLeading(subs)
+        is Alt -> null
+        // TODO double check if no exceptions?!
+        is Unary<I, E, *, Any?> -> inner.findLeading(subs)
+        is Binary<I, E, *, *, Any?> -> first.findLeading(subs)
         is Let -> subs[sub].findLeading(subs)
         else -> null
     }

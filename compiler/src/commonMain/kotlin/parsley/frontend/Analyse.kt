@@ -83,52 +83,15 @@ class DefaultLetBoundStep<I, E> : LetBoundStep<I, E> {
         if (refCount[p]!! == 1) {
             val nS = seen.add(p)
             when (p) {
-                is Ap<I, E, *, Any?> -> {
-                    callRecursive(nS to p.pF)
-                    callRecursive(nS to p.pA)
+                is Unary<I, E, *, Any?> -> {
+                    callRecursive(nS to p.inner)
                 }
-                is ApL<I, E, Any?, *> -> {
-                    callRecursive(nS to p.pA)
-                    callRecursive(nS to p.pB)
-                }
-                is ApR<I, E, *, Any?> -> {
-                    callRecursive(nS to p.pA)
-                    callRecursive(nS to p.pB)
-                }
-                is Alt -> {
-                    callRecursive(nS to p.left)
-                    callRecursive(nS to p.right)
-                }
-                is Select<I, E, *, Any?> -> {
-                    callRecursive(nS to p.pEither)
-                    callRecursive(nS to p.pIfLeft)
-                }
-                is LookAhead -> {
-                    callRecursive(nS to p.p)
-                }
-                is NegLookAhead -> {
-                    callRecursive(nS to p.p)
-                }
-                is Attempt -> {
-                    callRecursive(nS to p.p)
+                is Binary<I, E, *, *, Any?> -> {
+                    callRecursive(nS to p.first)
+                    callRecursive(nS to p.second)
                 }
                 is Lazy -> {
                     callRecursive(nS to p.f.invoke())
-                }
-                is Many<I, E, Any?> -> {
-                    callRecursive(nS to p.p)
-                }
-                is ChunkOf -> {
-                    callRecursive(nS to p.p)
-                }
-                is MatchOf<I, E, Any?> -> {
-                    callRecursive(nS to p.p)
-                }
-                is Label -> {
-                    callRecursive(nS to p.p)
-                }
-                is Catch<I, E, Any?> -> {
-                    callRecursive(nS to p.p)
                 }
                 else -> Unit
             }
@@ -230,62 +193,21 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
             handled: MutableMap<ParserF<I, E, Any?>, Int>
         ): ParserF<I, E, Any?> =
             when (p) {
-                is Ap<I, E, *, Any?> -> {
-                    val l = callRecursive(p.pF)
-                    val r = callRecursive(p.pA)
-                    Ap(l.unsafe(), r)
-                }
-                is ApL<I, E, Any?, *> -> {
-                    val l = callRecursive(p.pA)
-                    val r = callRecursive(p.pB)
-                    ApL(l, r)
-                }
-                is ApR<I, E, *, Any?> -> {
-                    val l = callRecursive(p.pA)
-                    val r = callRecursive(p.pB)
-                    ApR(l, r)
-                }
-                is Alt -> {
-                    val l = callRecursive(p.left)
-                    val r = callRecursive(p.right)
-                    Alt(l, r)
-                }
-                is Select<I, E, *, Any?> -> {
-                    val e = callRecursive(p.pEither)
-                    val l = callRecursive(p.pIfLeft)
-                    Select(
-                        e.unsafe<ParserF<I, E, Either<Any?, Any?>>>(),
-                        l.unsafe()
+                is Unary<I, E, *, Any?> -> {
+                    p.copy(
+                        callRecursive(p.inner).unsafe()
                     )
                 }
-                is LookAhead -> {
-                    LookAhead(callRecursive(p.p))
-                }
-                is NegLookAhead -> {
-                    NegLookAhead(callRecursive(p.p))
-                }
-                is Attempt -> {
-                    Attempt(callRecursive(p.p))
+                is Binary<I, E, *, *, Any?> -> {
+                    p.copy(
+                        callRecursive(p.first).unsafe(),
+                        callRecursive(p.second).unsafe()
+                    )
                 }
                 is Lazy -> {
                     if (handled.containsKey(p).not())
                         callRecursive(p.f.invoke())
                     else p
-                }
-                is Many<I, E, Any?> -> {
-                    Many(callRecursive(p.p))
-                }
-                is ChunkOf -> {
-                    ChunkOf(callRecursive(p.p))
-                }
-                is MatchOf<I, E, Any?> -> {
-                    MatchOf(callRecursive(p.p))
-                }
-                is Label -> {
-                    Label(p.label, callRecursive(p.p))
-                }
-                is Catch<I, E, Any?> -> {
-                    Catch(callRecursive(p.p))
                 }
                 else -> p
             }
@@ -307,10 +229,10 @@ class DefaultInsertLetStep<I, E> : InsertLetStep<I, E> {
 // TODO
 fun <I, E, A> ParserF<I, E, A>.small(): Boolean = when (this) {
     is Pure, is Satisfy<*>, is Single<*>, Empty, is Label, Eof -> true
-    is Ap<I, E, *, A> -> pF.small() && pA.small()
-    is ApR<I, E, *, A> -> pA.small() && pB.small()
-    is ApL<I, E, A, *> -> pA.small() && pB.small()
-    is ChunkOf -> p.small()
-    is MatchOf<I, E, *> -> p.small()
+    is Ap<I, E, *, A> -> first.small() && second.small()
+    is ApR<I, E, *, A> -> first.small() && second.small()
+    is ApL<I, E, A, *> -> first.small() && second.small()
+    is ChunkOf -> inner.small()
+    is MatchOf<I, E, *> -> inner.small()
     else -> false
 }

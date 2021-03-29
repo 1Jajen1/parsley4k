@@ -6,10 +6,7 @@ import parsley.frontend.LookAhead
 import parsley.frontend.NegLookAhead
 import parsley.frontend.ParserF
 import parsley.frontend.ChunkOf
-import parsley.frontend.Empty
 import parsley.frontend.Eof
-import parsley.frontend.Hide
-import parsley.frontend.Label
 import parsley.frontend.MatchOf
 import parsley.frontend.Satisfy
 import parsley.frontend.Single

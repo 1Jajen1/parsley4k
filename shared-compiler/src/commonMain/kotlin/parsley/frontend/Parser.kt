@@ -7,32 +7,60 @@ import parsley.Predicate
 
 interface ParserF<out I, out E, out A>
 
+abstract class Unary<I, E, A, out B>(
+    val inner: ParserF<I, E, A>
+) : ParserF<I, E, B> {
+    abstract fun copy(inner: ParserF<I, E, A>): ParserF<I, E, B>
+}
+
+abstract class Binary<I, E, A, B, out C>(
+    val first: ParserF<I, E, A>,
+    val second: ParserF<I, E, B>
+) : ParserF<I, E, C> {
+    abstract fun copy(
+        first: ParserF<I, E, A>,
+        second: ParserF<I, E, B>
+    ): ParserF<I, E, C>
+}
+
+
 // Applicative hierarchy
 class Pure<out A>(val a: A) : ParserF<Nothing, Nothing, A> {
     override fun toString(): String = "Pure($a)"
 }
 
-class Ap<out I, out E, A, out B>(val pF: ParserF<I, E, (A) -> B>, val pA: ParserF<I, E, A>) :
-    ParserF<I, E, B> {
-    override fun toString(): String = "($pF <*> $pA)"
+class Ap<I, E, A, B>(pF: ParserF<I, E, (A) -> B>, pA: ParserF<I, E, A>) :
+    Binary<I, E, (A) -> B, A, B>(pF, pA) {
+    override fun copy(first: ParserF<I, E, (A) -> B>, second: ParserF<I, E, A>): ParserF<I, E, B> =
+        Ap(first, second)
+
+    override fun toString(): String = "($first <*> $second)"
 }
 
-class ApL<out I, out E, out A, out B>(val pA: ParserF<I, E, A>, val pB: ParserF<I, E, B>) :
-    ParserF<I, E, A> {
-    override fun toString(): String = "($pA <* $pB)"
+class ApL<I, E, A, B>(pA: ParserF<I, E, A>, pB: ParserF<I, E, B>) :
+    Binary<I, E, A, B, A>(pA, pB) {
+    override fun copy(first: ParserF<I, E, A>, second: ParserF<I, E, B>): ParserF<I, E, A> =
+        ApL(first, second)
+
+    override fun toString(): String = "($first <* $second)"
 }
 
-class ApR<out I, out E, out A, out B>(val pA: ParserF<I, E, A>, val pB: ParserF<I, E, B>) :
-    ParserF<I, E, B> {
-    override fun toString(): String = "($pA *> $pB)"
+class ApR<I, E, A, B>(pA: ParserF<I, E, A>, pB: ParserF<I, E, B>) :
+    Binary<I, E, A, B, B>(pA, pB) {
+    override fun copy(first: ParserF<I, E, A>, second: ParserF<I, E, B>): ParserF<I, E, B> =
+        ApR(first, second)
+    override fun toString(): String = "($first *> $second)"
 }
 
 // Selective
-class Select<out I, out E, A, out B>(
-    val pEither: ParserF<I, E, Either<A, B>>,
-    val pIfLeft: ParserF<I, E, (A) -> B>
-) : ParserF<I, E, B> {
-    override fun toString(): String = "($pEither <?* $pIfLeft)"
+class Select<I, E, A, B>(
+    pEither: ParserF<I, E, Either<A, B>>,
+    pIfLeft: ParserF<I, E, (A) -> B>
+) : Binary<I, E, Either<A, B>, (A) -> B, B>(pEither, pIfLeft) {
+    override fun copy(first: ParserF<I, E, Either<A, B>>, second: ParserF<I, E, (A) -> B>): ParserF<I, E, B> =
+        Select(first, second)
+
+    override fun toString(): String = "($first <?* $second)"
 }
 
 // Matchers
@@ -54,23 +82,35 @@ object Empty : ParserF<Nothing, Nothing, Nothing> {
     override fun toString(): String = "Empty"
 }
 
-class Alt<out I, out E, out A>(val left: ParserF<I, E, A>, val right: ParserF<I, E, A>) :
-    ParserF<I, E, A> {
-    override fun toString(): String = "($left <|> $right)"
+class Alt<I, E, A>(left: ParserF<I, E, A>, right: ParserF<I, E, A>) :
+    Binary<I, E, A, A, A>(left, right) {
+    override fun copy(first: ParserF<I, E, A>, second: ParserF<I, E, A>): ParserF<I, E, A> =
+        Alt(first, second)
+
+    override fun toString(): String = "($first <|> $second)"
 }
 
 // LookAhead
-class LookAhead<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, A> {
-    override fun toString(): String = "LookAhead($p)"
+class LookAhead<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, A>(p) {
+    override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, A> =
+        LookAhead(inner)
+
+    override fun toString(): String = "LookAhead($inner)"
 }
 
-class NegLookAhead<out I, out E>(val p: ParserF<I, E, Any?>) : ParserF<I, E, Unit> {
-    override fun toString(): String = "NegLookAhead($p)"
+class NegLookAhead<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, Unit>(p) {
+    override fun copy(inner: ParserF<I, E, Any?>): ParserF<I, E, Unit> =
+        NegLookAhead(inner)
+
+    override fun toString(): String = "NegLookAhead($inner)"
 }
 
 // Attempt
-class Attempt<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, A> {
-    override fun toString(): String = "Attempt($p)"
+class Attempt<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, A>(p) {
+    override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, A> =
+        Attempt(inner)
+
+    override fun toString(): String = "Attempt($inner)"
 }
 
 // Recursion
@@ -83,16 +123,25 @@ class Let(val recursive: Boolean, val sub: Int) : ParserF<Nothing, Nothing, Noth
 }
 
 // Intrinsics for better performance
-class Many<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, List<A>> {
+class Many<I, E, A>(val p: ParserF<I, E, A>) : Unary<I, E, A, List<A>>(p) {
+    override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, List<A>> =
+        Many(inner)
+
     override fun toString(): String = "Many($p)"
 }
 
-class ChunkOf<out I, out E>(val p: ParserF<I, E, Any?>) : ParserF<I, E, List<I>> {
-    override fun toString(): String = "ChunkOf($p)"
+class ChunkOf<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, List<I>>(p) {
+    override fun copy(inner: ParserF<I, E, Any?>): ParserF<I, E, List<I>> =
+        ChunkOf(inner)
+
+    override fun toString(): String = "ChunkOf($inner)"
 }
 
-class MatchOf<out I, out E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, Pair<List<I>, A>> {
-    override fun toString(): String = "MatchOf($p)"
+class MatchOf<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, Pair<List<I>, A>>(p) {
+    override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, Pair<List<I>, A>> =
+        MatchOf(inner)
+
+    override fun toString(): String = "MatchOf($inner)"
 }
 
 object Eof : ParserF<Nothing, Nothing, Nothing> {
@@ -100,12 +149,18 @@ object Eof : ParserF<Nothing, Nothing, Nothing> {
 }
 
 // Failure
-class Label<out I, out E, out A>(val label: String?, val p: ParserF<I, E, A>) : ParserF<I, E, A> {
-    override fun toString(): String = "Label($label, $p)"
+class Label<I, E, A>(val label: String?, p: ParserF<I, E, A>) : Unary<I, E, A, A>(p) {
+    override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, A> =
+        Label(label, inner)
+
+    override fun toString(): String = "Label($label, $inner)"
 }
 
-class Catch<I, E, out A>(val p: ParserF<I, E, A>) : ParserF<I, E, Either<ParseError<I, E>, A>> {
-    override fun toString(): String = "Catch($p)"
+class Catch<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, Either<ParseError<I, E>, A>>(p) {
+    override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, Either<ParseError<I, E>, A>> =
+        Catch(inner)
+
+    override fun toString(): String = "Catch($inner)"
 }
 
 // Fail is just like Empty with an error however it guarantees a stable offset position and is not aggressively optimized

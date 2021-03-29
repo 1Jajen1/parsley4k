@@ -57,25 +57,6 @@ import parsley.frontend.small
 fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
     val settings = defaultSettings<Char, E>()
         //.copy(optimise = OptimiseSettings(analyseSatisfy = AnalyseSatisfy(generateSequence(Char.MIN_VALUE) { c -> if (c != Char.MAX_VALUE) c.inc() else null })))
-        .addLetFindStep(LetBoundStep.fallthrough { p, seen ->
-            if (p is CharListToString<E>) {
-                callRecursive(seen to p.p)
-                true
-            } else false
-        })
-        .addLetInsertStep(
-            InsertLetStep.fallthrough({ p ->
-                when (p) {
-                    is CharListToString -> CharListToString(callRecursive(p.p).unsafe())
-                    else -> null
-                }
-            }, { p ->
-                when (p) {
-                    is CharListToString -> p.p.small()
-                    else -> p.small()
-                }
-            })
-        )
         .addOptimiseStep(
             object : OptimiseStep<Char, E> {
                 override suspend fun DeepRecursiveScope<ParserF<Char, E, Any?>, ParserF<Char, E, Any?>>.step(
@@ -84,7 +65,7 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
                     settings: CompilerSettings<Char, E>
                 ): ParserF<Char, E, Any?> {
                     return when {
-                        p is CharListToString -> CharListToString(callRecursive(p.p).unsafe())
+                        p is CharListToString -> CharListToString(callRecursive(p.inner).unsafe())
                         p is parsley.frontend.Satisfy<*> && p.match is CharPredicate && settings.optimise.analyseSatisfy.f.any { true } -> {
                             val accepted = mutableSetOf<Char>()
                             val rejected = mutableSetOf<Char>()
@@ -108,7 +89,7 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
                 ): Boolean {
                     return when (p) {
                         is CharListToString -> {
-                            callRecursive(p.p)
+                            callRecursive(p.inner)
                             if (!ctx.discard) ctx += parsley.backend.CharListToString()
                             true
                         }
@@ -117,22 +98,6 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
                 }
             }
         ).addOptimiseStep { s, l -> replaceInstructions(s, l) }
-        .addRelabelStep(
-            object : RelabelStep<Char, E> {
-                override suspend fun DeepRecursiveScope<ParserF<Char, E, Any?>, ParserF<Char, E, Any?>>.step(
-                    p: ParserF<Char, E, Any?>,
-                    lbl: String?,
-                    subs: IntMap<ParserF<Char, E, Any?>>
-                ): ParserF<Char, E, Any?>? {
-                    return when (p) {
-                        is CharListToString -> {
-                            CharListToString(callRecursive(p.p).unsafe())
-                        }
-                        else -> null
-                    }
-                }
-            }
-        )
     return CompiledStringParser(
         parserF.compile(settings).toTypedArray()
             // .also { println(it.withIndex().map { (i, v) -> i to v }) }

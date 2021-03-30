@@ -91,7 +91,6 @@ fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
         ).addOptimiseStep { s, l -> replaceInstructions(s, l) }
     return CompiledStringParser(
         parserF.compile(settings).toTypedArray()
-            // .also { println(it.withIndex().map { (i, v) -> i to v }) }
     )
 }
 

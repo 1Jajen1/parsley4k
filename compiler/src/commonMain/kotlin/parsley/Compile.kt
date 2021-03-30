@@ -25,30 +25,130 @@ import parsley.frontend.optimise
 fun <I, E, A> ParserF<I, E, A>.compile(
     settings: CompilerSettings<I, E> = defaultSettings()
 ): Method<I, E> {
+    if (settings.logging.printInitialAST) {
+        println("Parser:AST:initial")
+        println(this)
+    }
+
     // Step 1: Replace let bound parsers. This prevents problems with recursion inside Lazy(...)
     var (mainP, subs, highestL) = preprocess(settings)
 
-    // TODO configure debug logging
+    if (settings.logging.printFixedAST) {
+        println("Parser:AST:fixed")
+        println("Main parser:")
+        println(mainP)
+        println("Sub parsers:")
+        subs.forEach { key, parserF ->
+            println("Parser label: $key")
+            println(parserF)
+        }
+    }
 
     // Step 2: Optimise AST
     mainP = mainP.optimise(subs, settings.frontend.optimiseSteps, settings)
     subs = subs.mapValues { v -> v.optimise(subs, settings.frontend.optimiseSteps, settings) }
 
+    if (settings.logging.printOptimisedAST) {
+        println("Parser:AST:optimised")
+        println("Main parser:")
+        println(mainP)
+        println("Sub parsers:")
+        subs.forEach { key, parserF ->
+            println("Parser label: $key")
+            println(parserF)
+        }
+    }
+
     // Step 3: Code gen
     val (mainI, subI, l) = mainP.codeGen(subs, highestL, settings.backend.codegenSteps)
+
+    if (settings.logging.printInitialInstr) {
+        println("Parser:Instr:initial")
+        println("Main method:")
+        println(mainI)
+        println("Sub methods:")
+        subI.forEach { key, method ->
+            println("Method label: $key")
+            println(method.showInstructions())
+        }
+    }
 
     // Step 4: Optimise instructions
     // TODO Clean up into fuseable single steps
     inlinePass(mainI, subI)
+
+    if (settings.logging.printInlinedInstr) {
+        println("Parser:Instr:inline:1")
+        println("Main method:")
+        println(mainI.showInstructions())
+        println("Sub methods:")
+        subI.forEach { key, method ->
+            println("Method label: $key")
+            println(method.showInstructions())
+        }
+    }
+
     // TODO Concat like inlinePass
     mainI.rewriteRules()
     subI.forEach { _, v -> v.rewriteRules() }
-    inlinePass(mainI, subI)
-    settings.backend.optimiseSteps.fold(l) { acc, f -> f(mainI, subI, acc) }
+
+    if (settings.logging.printRewrittenRulesInstr) {
+        println("Parser:Instr:rewrite")
+        println("Main method:")
+        println(mainI)
+        println("Sub methods:")
+        subI.forEach { key, method ->
+            println("Method label: $key")
+            println(method.showInstructions())
+        }
+    }
+
     inlinePass(mainI, subI)
 
+    if (settings.logging.printInlinedInstr) {
+        println("Parser:Instr:inline:2")
+        println("Main method:")
+        println(mainI)
+        println("Sub methods:")
+        subI.forEach { key, method ->
+            println("Method label: $key")
+            println(method.showInstructions())
+        }
+    }
+
+    settings.backend.optimiseSteps.fold(l) { acc, f -> f(mainI, subI, acc) }
+
+    if (settings.logging.printOptimisedInstr) {
+        println("Parser:Instr:optimise")
+        println("Main method:")
+        println(mainI)
+        println("Sub methods:")
+        subI.forEach { key, method ->
+            println("Method label: $key")
+            println(method.showInstructions())
+        }
+    }
+
+    inlinePass(mainI, subI)
+
+    if (settings.logging.printInlinedInstr) {
+        println("Parser:Instr:inline:3")
+        println("Main method:")
+        println(mainI)
+        println("Sub methods:")
+        subI.forEach { key, method ->
+            println("Method label: $key")
+            println(method.showInstructions())
+        }
+    }
+
     // Step 5: Assemble final program
-    return assemble(mainI, subI)
+    return assemble(mainI, subI).also {
+        if (settings.logging.printFinalInstr) {
+            println("Parser:Instr:final")
+            println(it.showInstructions())
+        }
+    }
 }
 
 fun <I, E> ParserF<I, E, Any?>.preprocess(settings: CompilerSettings<I, E>): Triple<ParserF<I, E, Any?>, IntMap<ParserF<I, E, Any?>>, Int> {
@@ -59,7 +159,8 @@ fun <I, E> ParserF<I, E, Any?>.preprocess(settings: CompilerSettings<I, E>): Tri
 data class CompilerSettings<I, E>(
     val frontend: FrontendSettings<I, E>,
     val backend: BackendSettings<I, E>,
-    val optimise: OptimiseSettings<I, E>
+    val optimise: OptimiseSettings<I, E>,
+    val logging: LogSettings
 ) {
     fun addLetFindStep(letStep: LetBoundStep<I, E>): CompilerSettings<I, E> =
         copy(frontend = frontend.copy(letfinderSteps = arrayOf(letStep) + frontend.letfinderSteps))
@@ -78,6 +179,43 @@ data class CompilerSettings<I, E>(
 
     fun addRelabelStep(step: RelabelStep<I, E>): CompilerSettings<I, E> =
         copy(frontend = frontend.copy(relabeSteps = arrayOf(step) + frontend.relabeSteps))
+
+    fun hideWarnings(): CompilerSettings<I, E> =
+        copy(logging = logging.copy(showWarnings = false))
+
+    fun printAllStages(): CompilerSettings<I, E> =
+        printInitialAST()
+            .printFixedAST()
+            .printOptimisedAST()
+            .printInitialInstr()
+            .printInlinedInstr()
+            .printRewrittenInstr()
+            .printOptimisedInstr()
+            .printFinalInstr()
+
+    fun printInitialAST(): CompilerSettings<I, E> =
+        copy(logging = logging.copy(printInitialAST = true))
+
+    fun printFixedAST(): CompilerSettings<I, E> =
+        copy(logging = logging.copy(printFixedAST = true))
+
+    fun printOptimisedAST(): CompilerSettings<I, E> =
+        copy(logging = logging.copy(printOptimisedAST = true))
+
+    fun printInitialInstr(): CompilerSettings<I, E> =
+        copy(logging = logging.copy(printInitialInstr = true))
+
+    fun printInlinedInstr(): CompilerSettings<I, E> =
+        copy(logging = logging.copy(printInlinedInstr = true))
+
+    fun printRewrittenInstr(): CompilerSettings<I, E> =
+        copy(logging = logging.copy(printRewrittenRulesInstr = true))
+
+    fun printOptimisedInstr(): CompilerSettings<I, E> =
+        copy(logging = logging.copy(printOptimisedInstr = true))
+
+    fun printFinalInstr(): CompilerSettings<I, E> =
+        copy(logging = logging.copy(printFinalInstr = true))
 }
 
 data class FrontendSettings<I, E>(
@@ -88,6 +226,10 @@ data class FrontendSettings<I, E>(
 )
 
 typealias Method<I, E> = MutableList<Instruction<I, E>>
+
+private fun <I, E> Method<I, E>.showInstructions(): String =
+    withIndex().map { (i, instr) -> "($i, $instr)" }.joinToString(", ")
+        .let { "[$it]" }
 
 typealias BackendOptimiseStep<I, E> =
         Method<I, E>.(IntMap<Method<I, E>>, Int) -> Int
@@ -101,10 +243,23 @@ data class OptimiseSettings<I, E>(
     val analyseSatisfy: AnalyseSatisfy<I> = AnalyseSatisfy()
 )
 
+data class LogSettings(
+    val showWarnings: Boolean = true,
+    val printInitialAST: Boolean = false,
+    val printFixedAST: Boolean = false,
+    val printOptimisedAST: Boolean = false,
+    val printInitialInstr: Boolean = false,
+    val printInlinedInstr: Boolean = false,
+    val printRewrittenRulesInstr: Boolean = false,
+    val printOptimisedInstr: Boolean = false,
+    val printFinalInstr: Boolean = false
+)
+
 fun <I, E> defaultSettings(): CompilerSettings<I, E> = CompilerSettings(
     frontend = defaultFrontendSettings(),
     backend = defaultBackendSettings(),
-    optimise = defaultOptimiseSettings()
+    optimise = defaultOptimiseSettings(),
+    logging = defaultLogSettings()
 )
 
 fun <I, E> defaultFrontendSettings(): FrontendSettings<I, E> = FrontendSettings(
@@ -120,6 +275,8 @@ fun <I, E> defaultBackendSettings(): BackendSettings<I, E> = BackendSettings(
 )
 
 fun <I, E> defaultOptimiseSettings(): OptimiseSettings<I, E> = OptimiseSettings()
+
+fun defaultLogSettings(): LogSettings = LogSettings()
 
 class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
 

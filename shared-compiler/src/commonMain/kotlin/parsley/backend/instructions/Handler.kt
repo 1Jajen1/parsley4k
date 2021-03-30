@@ -14,7 +14,7 @@ class PushHandler<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
         machine.pushHandler(to)
     }
 
-    override fun toString(): String = "PushHandler($to)"
+    override fun toString(): String = "PushHandler $to"
 }
 
 class InputCheck<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
@@ -23,7 +23,7 @@ class InputCheck<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
         machine.pushHandler(to)
     }
 
-    override fun toString(): String = "InputCheck($to)"
+    override fun toString(): String = "InputCheck $to"
 }
 
 class Catch<I, E> : Instruction<I, E> {
@@ -48,7 +48,7 @@ class JumpGood<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
         machine.jump(to)
     }
 
-    override fun toString(): String = "JumpGood($to)"
+    override fun toString(): String = "JumpGood $to"
 }
 
 class ResetOffsetOnFail<I, E> : Instruction<I, E> {
@@ -109,7 +109,7 @@ class RecoverWith<I, E>(val el: Any?) : Instruction<I, E> {
         }
     }
 
-    override fun toString(): String = "RecoverWith($el)"
+    override fun toString(): String = "RecoverWith $el"
 }
 
 class JumpGoodAttempt<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
@@ -124,7 +124,7 @@ class JumpGoodAttempt<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
         }
     }
 
-    override fun toString(): String = "JumpGoodAttempt($to)"
+    override fun toString(): String = "JumpGoodAttempt $to"
 }
 
 class RecoverAttemptWith<I, E>(val el: Any?) : Instruction<I, E> {
@@ -139,7 +139,7 @@ class RecoverAttemptWith<I, E>(val el: Any?) : Instruction<I, E> {
         }
     }
 
-    override fun toString(): String = "RecoverAttemptWith($el)"
+    override fun toString(): String = "RecoverAttemptWith $el"
 }
 
 class RecoverAttempt<I, E> : Instruction<I, E> {

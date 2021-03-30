@@ -64,7 +64,7 @@ class Single<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, E
         } else machine.needInput(error.expected)
     }
 
-    override fun toString(): String = "Single($i)"
+    override fun toString(): String = "Single $i"
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
     override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
@@ -83,7 +83,7 @@ class Single_<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, 
         } else machine.needInput(error.expected)
     }
 
-    override fun toString(): String = "Single_($i)"
+    override fun toString(): String = "Single_ $i"
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
     override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
@@ -129,7 +129,7 @@ class SatisfyN_<I, E>(val fArr: Array<Predicate<I>>, val eArr: Array<Set<ErrorIt
         } else machine.needInput(error.expected)
     }
 
-    override fun toString(): String = "SatisfyN_($sz)"
+    override fun toString(): String = "SatisfyN_ $sz"
 }
 
 class SingleN_<I, E>(val fArr: Array<I>, val eArr: Array<Set<ErrorItem<I>>>) : Instruction<I, E>, Errors<I, E> {
@@ -171,7 +171,7 @@ class SingleN_<I, E>(val fArr: Array<I>, val eArr: Array<Set<ErrorItem<I>>>) : I
         } else machine.needInput(error.expected)
     }
 
-    override fun toString(): String = "SingleN_(${fArr.toList()})"
+    override fun toString(): String = "SingleN_ ${fArr.toList()}"
 }
 
 // Optimized fused methods

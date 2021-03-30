@@ -35,36 +35,6 @@ interface LetBoundStep<I, E> {
     companion object
 }
 
-@OptIn(ExperimentalStdlibApi::class)
-inline fun <I, E> LetBoundStep.Companion.fallthrough(crossinline f: suspend DeepRecursiveScope<Pair<PersistentSet<ParserF<I, E, Any?>>, ParserF<I, E, Any?>>, Unit>.(p: ParserF<I, E, Any?>, PersistentSet<ParserF<I, E, Any?>>) -> Boolean) =
-    object : LetBoundStep<I, E> {
-        override suspend fun DeepRecursiveScope<Pair<PersistentSet<ParserF<I, E, Any?>>, ParserF<I, E, Any?>>, Unit>.step(
-            p: ParserF<I, E, Any?>,
-            seen: PersistentSet<ParserF<I, E, Any?>>,
-            refCount: MutableMap<ParserF<I, E, Any?>, Int>,
-            recursives: MutableSet<ParserF<I, E, Any?>>
-        ): Boolean {
-            refCount[p].also { refCount[p] = it?.let { it + 1 } ?: 1 }
-
-            if (seen.contains(p)) {
-                recursives.add(p)
-                return true
-            }
-
-            if (refCount[p]!! == 1) {
-                val nS = seen.add(p)
-                return if (f(p, nS)) true else {
-                    // ugly
-                    refCount[p] = refCount[p]!! - 1
-                    seen.remove(p)
-                    false
-                }
-            }
-
-            return false
-        }
-    }
-
 class DefaultLetBoundStep<I, E> : LetBoundStep<I, E> {
     @OptIn(ExperimentalStdlibApi::class)
     override suspend fun DeepRecursiveScope<Pair<PersistentSet<ParserF<I, E, Any?>>, ParserF<I, E, Any?>>, Unit>.step(

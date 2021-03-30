@@ -16,13 +16,13 @@ import kotlin.collections.Map
 class Call<I, E>(val recursive: Boolean, override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: AbstractStackMachine<I, E>) = machine.call(to)
 
-    override fun toString(): String = "Call($to)"
+    override fun toString(): String = "Call $to"
 }
 
 class Jump<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: AbstractStackMachine<I, E>) = machine.jump(to)
 
-    override fun toString(): String = "Jump($to)"
+    override fun toString(): String = "Jump $to"
 }
 
 class Label<I, E>(val id: Int) : Instruction<I, E> {
@@ -30,7 +30,7 @@ class Label<I, E>(val id: Int) : Instruction<I, E> {
         throw IllegalStateException("Label was not removed on assembly")
     }
 
-    override fun toString(): String = "Label($id)"
+    override fun toString(): String = "Label $id"
 }
 
 class Fail<I, E>(val err: ParseErrorT<I, E>? = null) : Instruction<I, E>, Errors<I, E> {
@@ -72,7 +72,7 @@ class JumpIfRight<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
         })
     }
 
-    override fun toString(): String = "JumpIfRight($to)"
+    override fun toString(): String = "JumpIfRight $to"
 }
 
 class Return<I, E> : Instruction<I, E> {
@@ -105,5 +105,5 @@ class JumpTable<I, E>(var table: Map<I, Int>, expected: Set<ErrorItem<I>>) : Ins
         } else machine.needInput(error.expected)
     }
 
-    override fun toString(): String = "JumpTable($table)"
+    override fun toString(): String = "JumpTable $table"
 }

@@ -44,8 +44,8 @@ class Many<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
         }
     }
 
-    override fun toString(): String = "Many($to)"
-    }
+    override fun toString(): String = "Many $to"
+}
 
 class Many_<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: AbstractStackMachine<I, E>) {
@@ -59,7 +59,7 @@ class Many_<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
         }
     }
 
-    override fun toString(): String = "Many_($to)"
+    override fun toString(): String = "Many_ $to"
 }
 
 // Optimised fused variants of Many that loop over the input directly rather than looping through instructions
@@ -155,7 +155,7 @@ class MatchMany_<I, E>(val path: Array<Matcher<I>>) : Instruction<I, E> {
         }
     }
 
-    override fun toString(): String = "MatchMany_(${path.toList()})"
+    override fun toString(): String = "MatchMany_ ${path.toList()}"
 }
 
 class MatchManyN_<I, E>(val paths: Array<Array<Matcher<I>>>) : Instruction<I, E>, Errors<I, E> {
@@ -177,11 +177,12 @@ class MatchManyN_<I, E>(val paths: Array<Array<Matcher<I>>>) : Instruction<I, E>
                     continue@loop
                 }
             }
+            // TODO fail here
             return@apply
         }
     }
 
-    override fun toString(): String = "MatchManyN_(${paths.map { it.toList() }})"
+    override fun toString(): String = "MatchManyN_ ${paths.map { it.toList() }}"
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
     override var error = ParseErrorT<I, E>(-1, unexpected, emptySet(), emptySet())

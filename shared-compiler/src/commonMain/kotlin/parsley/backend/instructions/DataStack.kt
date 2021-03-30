@@ -9,7 +9,7 @@ class Push<I, E>(val el: Any?): Instruction<I, E> {
         machine.push(el)
     }
 
-    override fun toString(): String = "Push($el)"
+    override fun toString(): String = "Push $el"
 }
 
 class Pop<I, E> : Instruction<I, E> {

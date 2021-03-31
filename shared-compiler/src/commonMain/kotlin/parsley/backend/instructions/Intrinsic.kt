@@ -12,6 +12,8 @@ import parsley.backend.ParseStatus
 import parsley.stack.ArrayStack
 import parsley.stack.IntStack
 import parsley.unsafe
+import kotlin.math.max
+import kotlin.math.min
 
 class Many<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     var head = mutableListOf<Any?>()
@@ -64,8 +66,9 @@ class Many_<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
 
 // Optimised fused variants of Many that loop over the input directly rather than looping through instructions
 class SatisfyMany<I, E>(val f: Predicate<I>) : Instruction<I, E> {
+    private var st: MutableList<I>? = null
     override fun apply(machine: AbstractStackMachine<I, E>) {
-        val acc = mutableListOf<I>()
+        val acc = st?.also { st = null } ?: mutableListOf()
         while (machine.hasMore()) {
             val i = machine.take()
             if (f(i)) {
@@ -76,8 +79,7 @@ class SatisfyMany<I, E>(val f: Predicate<I>) : Instruction<I, E> {
                 return
             }
         }
-        // TODO This won't work
-        machine.needInput()
+        machine.needInput(onSuspend = { st = acc }, onFail = { machine.push(acc) })
     }
 
     override fun toString(): String = "SatisfyMany"
@@ -93,16 +95,16 @@ class SatisfyMany_<I, E>(val f: Predicate<I>) : Instruction<I, E> {
                 return
             }
         }
-        // TODO This won't work
-        machine.needInput()
+        machine.needInput(onFail = {})
     }
 
     override fun toString(): String = "SatisfyMany_"
 }
 
 class SingleMany<I, E>(val i: I) : Instruction<I, E> {
+    private var st: Int = Int.MAX_VALUE
     override fun apply(machine: AbstractStackMachine<I, E>) {
-        var els = 0
+        var els = min(st, 0).also { st = Int.MAX_VALUE }
         while (machine.hasMore()) {
             val el = machine.take()
             if (i == el) {
@@ -113,8 +115,7 @@ class SingleMany<I, E>(val i: I) : Instruction<I, E> {
                 return
             }
         }
-        // TODO This won't work
-        machine.needInput()
+        machine.needInput(onSuspend = { st = els }, onFail = { machine.push(Array<Any?>(els) { i }.toList()) })
     }
 
     override fun toString(): String = "SingleMany"
@@ -130,8 +131,7 @@ class SingleMany_<I, E>(val i: I) : Instruction<I, E> {
                 return
             }
         }
-        // TODO This won't work
-        machine.needInput()
+        machine.needInput(onFail = {})
     }
 
     override fun toString(): String = "SingleMany_"

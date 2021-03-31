@@ -1,6 +1,7 @@
-package parsley.backend
+package parsley.backend.instructions
 
-import parsley.StringStackMachine
+import parsley.backend.AbstractStackMachine
+import parsley.backend.Instruction
 import parsley.unsafe
 
 class CharListToString<E> : Instruction<Char, E> {

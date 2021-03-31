@@ -1,17 +1,17 @@
-package parsley.backend
+package parsley.backend.instructions
 
 import parsley.CharPredicate
 import parsley.CharTokensT
 import parsley.ErrorItem
-import parsley.ErrorItemT
-import parsley.ParseError
 import parsley.ParseErrorT
-import parsley.Predicate
-import parsley.StringStackMachine
-import parsley.backend.instructions.Matcher
+import parsley.backend.StringStackMachine
+import parsley.backend.AbstractStackMachine
+import parsley.backend.Errors
+import parsley.backend.Instruction
 import parsley.unsafe
 
-class SatisfyChars_<E>(val fArr: Array<CharPredicate>, eArr: Array<Set<ErrorItem<Char>>>) : Instruction<Char, E>, Errors<Char, E> {
+class SatisfyChars_<E>(val fArr: Array<CharPredicate>, eArr: Array<Set<ErrorItem<Char>>>) : Instruction<Char, E>,
+    Errors<Char, E> {
 
     private var unexpected = CharTokensT(' ', charArrayOf())
     private var errRef = ParseErrorT<Char, E>(-1, unexpected, emptySet(), emptySet())
@@ -49,10 +49,7 @@ class SatisfyChars_<E>(val fArr: Array<CharPredicate>, eArr: Array<Set<ErrorItem
                     return machine.failWith(error)
                 }
             }
-        } else {
-            // TODO Consume up to max here
-            machine.needInput()
-        }
+        } else machine.needInput()
     }
 
     override fun toString(): String = "SatisfyChars_($sz)"
@@ -96,10 +93,7 @@ class MatchString_<E>(val arr: CharArray, eArr: Array<Set<ErrorItem<Char>>>) : I
                     return machine.failWith(error)
                 }
             }
-        } else {
-            // TODO Consume up to max here
-            machine.needInput()
-        }
+        } else machine.needInput()
     }
 
     override fun toString(): String = "MatchString_(${arr.concatToString()})"

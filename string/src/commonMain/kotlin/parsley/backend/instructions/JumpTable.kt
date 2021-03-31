@@ -1,8 +1,12 @@
-package parsley.backend
+package parsley.backend.instructions
 
 import parsley.ErrorItemT
 import parsley.ParseErrorT
-import parsley.StringStackMachine
+import parsley.backend.AbstractStackMachine
+import parsley.backend.Errors
+import parsley.backend.Instruction
+import parsley.backend.Jumps
+import parsley.backend.StringStackMachine
 import parsley.collections.IntMap
 import parsley.unsafe
 
@@ -36,6 +40,12 @@ class CharJumpTable<E>(val map: IntMap<Int>) : Instruction<Char, E>, Jumps, Erro
     override fun toString(): String {
         val map = mutableListOf<Pair<Char, Int>>()
         this.map.onEach { k, v -> v.also { map.add(k.toChar() to v) } }
-        return "CharJumpTable($map)"
+        return "CharJumpTable $map"
+    }
+
+    override fun copy(): Instruction<Char, E> {
+        val new = CharJumpTable<E>(map)
+
+        return new
     }
 }

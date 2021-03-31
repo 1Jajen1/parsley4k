@@ -5,6 +5,9 @@ import parsley.ParseErrorT
 
 interface Instruction<I, E> {
     fun apply(machine: AbstractStackMachine<I, E>)
+
+    // overwrite if stateful!
+    fun copy(): Instruction<I, E> = this
 }
 
 // TODO This got a bit ugly

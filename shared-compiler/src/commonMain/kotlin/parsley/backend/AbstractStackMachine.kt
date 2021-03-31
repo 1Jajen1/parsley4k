@@ -28,6 +28,13 @@ abstract class AbstractStackMachine<I, E>(val instructions: Array<Instruction<I,
     var programCounter: Int = 0
     var inputOffset: Int = 0
 
+    // streaming
+    open var acceptMoreInput: Boolean = true
+    // TODO consumption analysis to figure out where we and when can drop chunks of the input
+    //  The idea being: Whenever we push new input we do a quick check what the last element is we
+    //  definitely consumed and no longer need access to.
+    // private var retainInputOffset = Int
+
     // TODO Decide if these should be kept
     fun push(el: Any?): Unit = dataStack.push(el)
     fun pop(): Any? = dataStack.pop()
@@ -132,19 +139,37 @@ abstract class AbstractStackMachine<I, E>(val instructions: Array<Instruction<I,
         inputOffset += n
     }
 
-    private val eofErr = ParseErrorT<I, E>(-1, ErrorItemT.EndOfInput, emptySet(), emptySet())
-    open fun needInput(expected: Set<ErrorItem<I>> = emptySet()): Unit =
-        failWith(eofErr.also { it.expected = expected })
+    val eofErr = ParseErrorT<I, E>(-1, ErrorItemT.EndOfInput, emptySet(), emptySet())
+    inline fun needInput(
+        expected: Set<ErrorItem<I>> = emptySet(),
+        onSuspend: () -> Unit = {},
+        onFail: () -> Unit = { failWith(eofErr.also { it.expected = expected }) }
+    ): Unit =
+        if (acceptMoreInput) {
+            status = ParseStatus.Suspended
+            returnStack.push(programCounter - 1)
+            programCounter = instructions.size
+            onSuspend()
+        } else {
+            onFail()
+        }
 
     fun execute() {
         while (programCounter < instructions.size) {
             instructions[programCounter++].apply(this)
         }
     }
+
+    fun reexecute() {
+        programCounter = returnStack.pop()
+        status = ParseStatus.Ok
+        execute()
+    }
 }
 
 sealed class ParseStatus {
     object Ok : ParseStatus()
+    object Suspended : ParseStatus()
     object Err : ParseStatus()
 }
 

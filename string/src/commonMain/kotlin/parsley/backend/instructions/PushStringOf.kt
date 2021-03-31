@@ -1,6 +1,9 @@
-package parsley.backend
+package parsley.backend.instructions
 
-import parsley.StringStackMachine
+import parsley.backend.StringStackMachine
+import parsley.backend.AbstractStackMachine
+import parsley.backend.Instruction
+import parsley.backend.ParseStatus
 import parsley.unsafe
 
 class PushStringOf<E> : Instruction<Char, E> {

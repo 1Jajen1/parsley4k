@@ -1,12 +1,16 @@
-package parsley.backend
+package parsley.backend.instructions
 
 import parsley.CharFunc
 import parsley.CharPredicate
 import parsley.CharTokensT
-import parsley.ErrorItemT
 import parsley.ParseErrorT
-import parsley.StringStackMachine
+import parsley.backend.StringStackMachine
+import parsley.backend.AbstractStackMachine
+import parsley.backend.Errors
+import parsley.backend.Instruction
 import parsley.unsafe
+import kotlin.math.max
+import kotlin.math.min
 
 // TODO Add warning after compiling that this boxes. Also warn about generic satisfy instructions
 class SatisfyChar<E>(val p: CharPredicate) : Instruction<Char, E>, Errors<Char, E> {
@@ -53,9 +57,10 @@ class SatisfyChar_<E>(val p: CharPredicate) : Instruction<Char, E>, Errors<Char,
 }
 
 class SatisfyCharMany<E>(val p: CharPredicate) : Instruction<Char, E> {
+    private var st: Int = Int.MAX_VALUE
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
-        val start = machine.inputOffset
+        val start = min(st, machine.inputOffset).also { st = Int.MAX_VALUE }
         while (machine.hasMore()) {
             val c = machine.takeP()
             if (p.invokeP(c)) {
@@ -65,6 +70,10 @@ class SatisfyCharMany<E>(val p: CharPredicate) : Instruction<Char, E> {
                 return
             }
         }
+        machine.needInput(
+            onSuspend = { st = start },
+            onFail = { machine.push(machine.takeP(start, machine.inputOffset).concatToString()) }
+        )
     }
 
     override fun toString(): String = "SatisfyCharMany"

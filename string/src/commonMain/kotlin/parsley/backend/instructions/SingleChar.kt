@@ -1,11 +1,15 @@
-package parsley.backend
+package parsley.backend.instructions
 
 import parsley.CharTokensT
 import parsley.ErrorItem
-import parsley.ErrorItemT
 import parsley.ParseErrorT
-import parsley.StringStackMachine
+import parsley.backend.StringStackMachine
+import parsley.backend.AbstractStackMachine
+import parsley.backend.Errors
+import parsley.backend.Instruction
 import parsley.unsafe
+import kotlin.math.max
+import kotlin.math.min
 
 // TODO Add warning after compiling that this boxes
 class SingleChar<E>(val c: Char) : Instruction<Char, E>, Errors<Char, E> {
@@ -52,9 +56,10 @@ class SingleChar_<E>(val c: Char) : Instruction<Char, E>, Errors<Char, E> {
 }
 
 class SingleCharMany<E>(val c: Char) : Instruction<Char, E> {
+    private var st: Int = Int.MAX_VALUE
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
-        val start = machine.inputOffset
+        val start = min(st, machine.inputOffset).also { st = Int.MAX_VALUE }
         while (machine.hasMore()) {
             val el = machine.takeP()
             if (el == c) {
@@ -64,6 +69,10 @@ class SingleCharMany<E>(val c: Char) : Instruction<Char, E> {
                 return
             }
         }
+        machine.needInput(
+            onSuspend = { st = start },
+            onFail = { machine.push(machine.takeP(start, machine.inputOffset).concatToString()) }
+        )
     }
 
     override fun toString(): String = "SingleCharMany($c)"
@@ -78,6 +87,7 @@ class SingleCharMany_<E>(val c: Char) : Instruction<Char, E> {
                 machine.consume()
             } else return
         }
+        machine.needInput(onFail = {})
     }
 
     override fun toString(): String = "SingleCharMany_($c)"

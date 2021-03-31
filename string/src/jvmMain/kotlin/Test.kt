@@ -25,12 +25,24 @@ import parsley.some
 import parsley.string
 
 fun main() {
+    val p = Parser.run {
+        char('a').many()
+    }.compile()
+
+    val chunks = listOf("aaaa", "aaa", "")
+    val init = p.parseStreaming("a".toCharArray())
+    val res = chunks.fold(init) { acc, s -> acc.pushChunk(s.toCharArray()) }
+
     val inp = jsonSample1K.toCharArray()
     compiledJsonParser.parse(inp)
-        .fold({
-            println(it.pretty(inp))
+        .fold({ res, rem ->
+            println(res)
+            if (rem.isNotEmpty()) println(rem)
         }, {
-            println(it)
+            throw IllegalStateException("Why exactly is this not done?")
+        }, { err, rem ->
+            println(err.pretty(inp))
+            if (rem.isNotEmpty()) println(rem)
         })
 }
 

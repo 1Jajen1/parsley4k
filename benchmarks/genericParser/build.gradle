@@ -1,0 +1,24 @@
+apply from: rootProject.file("gradle/targets.gradle")
+
+kotlin {
+    targets.all {
+        compilations.all {
+            kotlinOptions {
+                freeCompilerArgs += '-Xno-param-assertions'
+            }
+        }
+    }
+    targets.jvm.compilations.all {
+        kotlinOptions {
+            jvmTarget = "1.8"
+        }
+    }
+    sourceSets {
+        all {
+            dependencies {
+                implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
+                implementation project(":generic")
+            }
+        }
+    }
+}

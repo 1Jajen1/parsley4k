@@ -24,10 +24,10 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
-                // Benchmark generic parsers
-                implementation project(":generic")
-                // Benchmark string parsers
-                implementation project(":string")
+                // parsers
+                implementation project(":benchmarks:genericParser")
+                implementation project(":benchmarks:charParser")
+                implementation project(":benchmarks:byteParser")
                 // Benchmark parts of shared-compiler
                 implementation project(":shared-compiler")
 

@@ -29,7 +29,7 @@ kotlin {
                 implementation project(":benchmarks:charParser")
                 implementation project(":benchmarks:byteParser")
                 // Benchmark parts of shared-compiler
-                implementation project(":shared-compiler")
+                implementation project(":compiler:shared")
 
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
                 implementation "org.jetbrains.kotlinx:kotlinx.benchmark.runtime:$kotlin_benchmark_version"

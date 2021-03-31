@@ -19,8 +19,8 @@ kotlin {
         all {
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
-                api project(':shared-api')
-                implementation project(':shared-compiler')
+                api project(':api:shared')
+                implementation project(':compiler:shared')
             }
         }
     }

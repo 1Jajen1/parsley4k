@@ -17,7 +17,7 @@ kotlin {
         all {
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
-                implementation project(":generic")
+                implementation project(":api:generic")
             }
         }
     }

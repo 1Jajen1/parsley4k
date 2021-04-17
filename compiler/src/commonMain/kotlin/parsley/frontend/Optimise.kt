@@ -66,6 +66,10 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     // empty <*> x = empty || x <*> empty = empty
                     pf is Empty -> pf
                     pa is Empty -> pa
+                    // Pure f <*> (p <|> q) = (Pure f <*> p) <|> (Pure f <*> q)
+                    pf is Pure && pa is Alt -> {
+                        callRecursive(Alt(Ap(pf, pa.first), Ap(pf, pa.second)))
+                    }
                     else -> Ap(pf, pa)
                 }
             }
@@ -227,6 +231,7 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     Empty -> Empty
                     is MatchOf<I, E, *> -> ChunkOf(callRecursive(pInner.inner))
                     is ChunkOf -> pInner
+                    is Alt -> Alt(ChunkOf(pInner), ChunkOf(pInner))
                     else -> ChunkOf(pInner)
                 }
             }
@@ -251,11 +256,22 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
                     else -> Catch(pInner)
                 }
             }
-            is Unary<I, E, *, Any?> -> p.copy(callRecursive(p.inner).unsafe())
-            is Binary<I, E, *, *, Any?> -> p.copy(
-                callRecursive(p.first).unsafe(),
-                callRecursive(p.second).unsafe()
-            )
+            is Unary<I, E, *, Any?> -> {
+                val inner = callRecursive(p.inner)
+                if (inner is Alt && p is DistributesOrElse) {
+                    Alt(p.copy(inner.first.unsafe()), p.copy(inner.second.unsafe()))
+                } else p.copy(inner.unsafe())
+            }
+            is Binary<I, E, *, *, Any?> -> {
+                p.copy(
+                    callRecursive(p.first).unsafe(),
+                    callRecursive(p.second).unsafe()
+                )
+            }
+            is Let -> {
+                // TODO Inline rules!
+                p
+            }
             else -> p
         }
 }
@@ -309,7 +325,7 @@ class DefaultRelabelStep<I, E>: RelabelStep<I, E> {
             // Why not relabel Let by relabelling the referenced parser?
             // Well the problem is multiple labeled parsers may use the same let bound one, hence we can't
             // guarantee our label remains the only one and we'd overwrite labels.
-            is Let -> p
+            // is Let -> ???
             else -> null.also { println(p) }
         }
     }

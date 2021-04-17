@@ -7,7 +7,7 @@ import pretty.nest
 import pretty.softLine
 import pretty.text
 
-class ByteListToArr<E>(p: ParserF<Byte, E, List<Byte>>) : Unary<Byte, E, List<Byte>, ByteArray>(p) {
+class ByteListToArr<E>(p: ParserF<Byte, E, List<Byte>>) : Unary<Byte, E, List<Byte>, ByteArray>(p), DistributesOrElse {
     override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<Byte, E, List<Byte>>): ParserF<Byte, E, ByteArray> =
         ByteListToArr(inner)

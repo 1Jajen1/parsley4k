@@ -109,7 +109,7 @@ fun <E> Method<Char, E>.replaceMethod() {
                 removeAt(curr)
                 val map = parsley.collections.IntMap.empty<Int>()
                 el.table.forEach { (k, v) -> map[k.toInt()] = v }
-                val table = CharJumpTable<E>(map)
+                val table = CharJumpTable<E>(map, el.to)
                 table.error.expected = el.error.expected
                 add(curr, table)
             }

@@ -82,12 +82,13 @@ class Return<I, E> : Instruction<I, E> {
 }
 
 // Optimised
-class JumpTable<I, E>(var table: Map<I, Int>, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Jumps, Errors<I, E> {
-    override var to: Int = -1 // unused
+class JumpTable<I, E>(var table: Map<I, Int>, expected: Set<ErrorItem<I>>, fallbackLabel: Int? = null) : Instruction<I, E>, Jumps, Errors<I, E> {
+    override var to: Int = fallbackLabel ?: -1
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
     override var error: ParseErrorT<I, E> = ParseErrorT(-1, unexpected, expected, emptySet())
     override fun onAssembly(f: (Int) -> Int): Boolean {
         table = table.mapValues { (_, i) -> f(i) }
+        if (to != -1) to = f(to)
         return true
     }
     override fun apply(machine: AbstractStackMachine<I, E>) {
@@ -98,9 +99,12 @@ class JumpTable<I, E>(var table: Map<I, Int>, expected: Set<ErrorItem<I>>) : Ins
             if (table.containsKey(i)) {
                 machine.jump(table[i]!!)
             } else {
-                unexpected.head = i
-                machine.addUnexpected(unexpected)
-                machine.fail()
+                if (to != -1) machine.jump(to)
+                else {
+                    unexpected.head = i
+                    machine.addUnexpected(unexpected)
+                    machine.fail()
+                }
             }
         } else machine.needInput(error.expected)
     }

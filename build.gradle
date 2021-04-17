@@ -1,6 +1,6 @@
 buildscript {
     ext.arrow_version = "0.11.0"
-    ext.kotlin_version = "1.4.21"
+    ext.kotlin_version = "1.5.0-M2"
     ext.kotlin_benchmark_version = "0.2.0-dev-20"
     ext.kotlin_serialization_version = "1.0.1"
     ext.better_parse_version = "0.4.0"

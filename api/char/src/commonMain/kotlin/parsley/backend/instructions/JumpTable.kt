@@ -10,14 +10,14 @@ import parsley.backend.StringStackMachine
 import parsley.collections.IntMap
 import parsley.unsafe
 
-class CharJumpTable<E>(val map: IntMap<Int>) : Instruction<Char, E>, Jumps, Errors<Char, E> {
-    override var to: Int = -1 // unused
+class CharJumpTable<E>(val map: IntMap<Int>, override var to: Int) : Instruction<Char, E>, Jumps, Errors<Char, E> {
 
     private var unexpected = ErrorItemT.Tokens<Char>(null.unsafe(), mutableListOf())
     override var error: ParseErrorT<Char, E> = ParseErrorT(-1, unexpected, emptySet(), emptySet())
 
     override fun onAssembly(f: (Int) -> Int): Boolean {
         map.onEach { _, v -> f(v) }
+        if (to != -1) to = f(to)
         return true
     }
 
@@ -30,9 +30,12 @@ class CharJumpTable<E>(val map: IntMap<Int>) : Instruction<Char, E>, Jumps, Erro
             machine.addAsHint(error)
             if (key in map) machine.jump(map[key])
             else {
-                unexpected.head = c
-                machine.addUnexpected(unexpected)
-                machine.fail()
+                if (to != -1) machine.jump(to)
+                else {
+                    unexpected.head = c
+                    machine.addUnexpected(unexpected)
+                    machine.fail()
+                }
             }
         } else machine.needInput(error.expected)
     }
@@ -44,7 +47,7 @@ class CharJumpTable<E>(val map: IntMap<Int>) : Instruction<Char, E>, Jumps, Erro
     }
 
     override fun copy(): Instruction<Char, E> {
-        val new = CharJumpTable<E>(map)
+        val new = CharJumpTable<E>(map, to)
 
         return new
     }

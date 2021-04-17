@@ -1,7 +1,9 @@
 package parsley.backend
 
+import parsley.Either
 import parsley.ErrorItem
 import parsley.ParseErrorT
+import parsley.Predicate
 import parsley.backend.instructions.AlwaysRecover
 import parsley.backend.instructions.Apply
 import parsley.backend.instructions.Call
@@ -340,7 +342,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
     p: Alt<I, E, Any?>,
     ctx: CodeGenContext<I, E>
 ): Unit {
-    val (table, fallback, expected) = toJumpTable(p, ctx.subs)
+    val (table, fallback, expected, overlaps) = toJumpTable(p, ctx.subs)
 
     suspend fun <A> DeepRecursiveScope<ParserF<I, E, A>, Unit>.asChoice(xs: List<ParserF<I, E, A>>): Unit =
         when (xs.size) {
@@ -397,13 +399,14 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
             val end = ctx.mkLabel()
             val labels = table.mapValues { ctx.mkLabel() }
             val fL = ctx.mkLabel()
-            if (fallback.isNotEmpty()) {
+            if (fallback.isNotEmpty() && overlaps) {
                 ctx += InputCheck(fL)
             }
-            ctx += JumpTable(labels, expected)
+            if (fallback.isNotEmpty() && !overlaps) ctx += JumpTable(labels, expected, fL)
+            else ctx += JumpTable(labels, expected)
             table.forEach { (i, xs) ->
                 ctx += Label(labels[i]!!)
-                // TODO Is this even good?
+                // TODO Is this even good? Also it's bugged
                 if (xs.first() is Attempt) {
                     val l = ctx.mkLabel()
                     ctx += InputCheck(l)
@@ -411,7 +414,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
                     ctx += JumpGoodAttempt(end)
                 } else {
                     asChoice(xs)
-                    if (fallback.isNotEmpty()) {
+                    if (fallback.isNotEmpty() && overlaps) {
                         ctx += JumpGood(end)
                     } else {
                         ctx += Jump(end)
@@ -420,7 +423,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
             }
             if (fallback.isNotEmpty()) {
                 ctx += Label(fL)
-                ctx += Catch()
+                if (overlaps) ctx += Catch()
                 asChoice(fallback)
             }
             ctx += Label(end)
@@ -428,34 +431,43 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
     }
 }
 
+private fun <I, E> toAltList(
+    p: Alt<I, E, Any?>
+): List<ParserF<I, E, Any?>> {
+    val buf = mutableListOf<ParserF<I, E, Any?>>()
+    var curr: ParserF<I, E, Any?> = p
+    while (curr is Alt) {
+        buf.add(curr.first)
+        curr = curr.second
+    }
+    buf.add(curr)
+    return buf
+}
+
+private data class Tuple4<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+
 private fun <I, E> toJumpTable(
     p: Alt<I, E, Any?>,
     subs: IntMap<ParserF<I, E, Any?>>
-): Triple<MutableMap<I, MutableList<ParserF<I, E, Any?>>>, MutableList<ParserF<I, E, Any?>>, Set<ErrorItem<I>>> {
+): Tuple4<MutableMap<I, MutableList<ParserF<I, E, Any?>>>, List<ParserF<I, E, Any?>>, Set<ErrorItem<I>>, Boolean> {
     val table = mutableMapOf<I, MutableList<ParserF<I, E, Any?>>>()
-    val fallback = mutableListOf<ParserF<I, E, Any?>>()
-    var curr: ParserF<I, E, Any?> = p
+    val fallback = mutableListOf<Pair<Predicate<I>, ParserF<I, E, Any?>>>()
     val expectedBuf = mutableSetOf<ErrorItem<I>>()
-    while (curr is Alt) {
-        curr.first.findLeading(subs)?.let { (els, expected) ->
-            els.forEach {
-                val el = curr.unsafe<Alt<I, E, Any?>>().first
-                if (table.containsKey(it)) table[it]!!.add(el)
-                else table[it] = mutableListOf(el)
-            }
-            expectedBuf.addAll(getExpected(curr.unsafe<Alt<I, E, Any?>>().first, subs) ?: expected)
-        } ?: fallback.add(curr.first)
-        curr = curr.second
-    }
-    curr.findLeading(subs)?.let { (els, expected) ->
-        els.forEach {
-            if (table.containsKey(it)) table[it]!!.add(curr)
-            else table[it] = mutableListOf(curr)
-        }
-        expectedBuf.addAll(getExpected(curr, subs) ?: expected)
-    } ?: fallback.add(curr)
 
-    return Triple(table, fallback, expectedBuf)
+    val alternatives = toAltList(p)
+    alternatives.forEach {
+        it.findLeading(subs).fold({ pred ->
+            fallback.add(pred to it)
+        }, { (leading, expected) ->
+            if (leading in table) table[leading]!!.add(it)
+            else table[leading] = mutableListOf(it)
+            expectedBuf.addAll(getExpected(it, subs) ?: expected)
+        })
+    }
+
+    val overlaps = fallback.any { (f, _) -> table.keys.any { f(it) } }
+
+    return Tuple4(table, fallback.map { it.second }, expectedBuf, overlaps)
 }
 
 fun <I, E> getExpected(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, Any?>>): Set<ErrorItem<I>>? {
@@ -482,25 +494,48 @@ fun <I, E> getExpected(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, Any?>>
     } else return null
 }
 
-// TODO Try to handle Alt as well. This would essentially be lifting the Alt up and then duplicating
-//  part of the underlying parser...
-// TODO Collect all tokens of a path if the pattern is ApR(ApR(Sat, Sat), Sat) etc and it only has one expected
-/*
- * Idea: Look for Ap/ApR/ApL(Alt(...), p) and collect jump table from Alt
- *  Also look for special case Ap/ApR/ApL(Alt(..., Pure(x)), p) and also collect from p because there is a no-consume way to it
- */
-private tailrec fun <I, E> ParserF<I, E, Any?>.findLeading(subs: IntMap<ParserF<I, E, Any?>>): Pair<Set<I>, Set<ErrorItem<I>>>? =
-    when (this) {
-        is Satisfy<*> -> emptySet<I>() to expected.unsafe()
-        is Single<*> -> setOf(i.unsafe<I>()) to expected.unsafe()
-        is Ap<I, E, *, Any?> -> {
-            if (first is Pure) second.findLeading(subs)
-            else first.findLeading(subs)
+@OptIn(ExperimentalStdlibApi::class)
+private fun <I, E> ParserF<I, E, Any?>.findLeading(subs: IntMap<ParserF<I, E, Any?>>): Either<Predicate<I>, Pair<I, Set<ErrorItem<I>>>> =
+    DeepRecursiveFunction<ParserF<I, E, Any?>, Either<Predicate<I>, Pair<I, Set<ErrorItem<I>>>>> { p ->
+        when (p) {
+            is Pure -> Either.Left(Predicate { false })
+            is Satisfy<*> -> Either.left(p.match.unsafe())
+            is Single<*> -> Either.right(p.i.unsafe<I>() to p.expected.unsafe())
+            is Ap<I, E, *, Any?> -> {
+                if (p.first is Pure) p.second.findLeading(subs)
+                else p.first.findLeading(subs)
+            }
+            is Alt -> {
+                val l = callRecursive(p.first)
+                val r = callRecursive(p.second)
+                when {
+                    l is Either.Left && r is Either.Left -> {
+                        Either.Left(Predicate {
+                            l.a(it) || r.a(it)
+                        })
+                    }
+                    l is Either.Right && r is Either.Right -> {
+                        Either.Left(Predicate {
+                            it == l.b.first || it == r.b.first
+                        })
+                    }
+                    l is Either.Left && r is Either.Right -> {
+                        Either.Left(Predicate {
+                            l.a(it) || it == r.b.first
+                        })
+                    }
+                    l is Either.Right && r is Either.Left -> {
+                        Either.Left(Predicate {
+                            it == l.b.first || r.a(it)
+                        })
+                    }
+                    else -> TODO("Impossible")
+                }
+            }
+            is Unary<I, E, *, Any?> -> p.inner.findLeading(subs)
+            is Binary<I, E, *, *, Any?> -> p.first.findLeading(subs)
+            is Let -> subs[p.sub].findLeading(subs)
+            else -> Either.left(Predicate { true })
         }
-        is Alt -> null
-        // TODO double check if no exceptions?!
-        is Unary<I, E, *, Any?> -> inner.findLeading(subs)
-        is Binary<I, E, *, *, Any?> -> first.findLeading(subs)
-        is Let -> subs[sub].findLeading(subs)
-        else -> null
-    }
+    }.invoke(this)
+

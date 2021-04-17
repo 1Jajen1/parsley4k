@@ -43,6 +43,9 @@ abstract class ParserF<out I, out E, out A> {
     override fun toString(): String = pprint().pretty(maxWidth = 100, ribbonWidth = 0.5F)
 }
 
+// Marker if we can distribute this parser over an orElse chain
+interface DistributesOrElse
+
 abstract class Unary<I, E, A, out B>(
     val inner: ParserF<I, E, A>
 ) : ParserF<I, E, B>() {
@@ -197,7 +200,7 @@ class Many<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, List<A>>(p) {
     override fun pprint(): Doc<Nothing> = cons(inner, "Many")
 }
 
-class ChunkOf<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, List<I>>(p) {
+class ChunkOf<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, List<I>>(p), DistributesOrElse {
     override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, Any?>): ParserF<I, E, List<I>> =
         ChunkOf(inner)
@@ -205,7 +208,7 @@ class ChunkOf<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, List<I>>(p) {
     override fun pprint(): Doc<Nothing> = cons(inner, "ChunkOf")
 }
 
-class MatchOf<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, Pair<List<I>, A>>(p) {
+class MatchOf<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, Pair<List<I>, A>>(p), DistributesOrElse {
     override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, Pair<List<I>, A>> =
         MatchOf(inner)
@@ -219,7 +222,7 @@ object Eof : ParserF<Nothing, Nothing, Nothing>() {
 }
 
 // Failure
-class Label<I, E, A>(val label: String?, p: ParserF<I, E, A>) : Unary<I, E, A, A>(p) {
+class Label<I, E, A>(val label: String?, p: ParserF<I, E, A>) : Unary<I, E, A, A>(p), DistributesOrElse {
     override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, A> =
         Label(label, inner)

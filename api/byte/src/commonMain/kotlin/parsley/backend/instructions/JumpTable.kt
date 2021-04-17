@@ -10,14 +10,13 @@ import parsley.backend.ByteArrayStackMachine
 import parsley.collections.IntMap
 import parsley.unsafe
 
-class ByteJumpTable<E>(val map: IntMap<Int>) : Instruction<Byte, E>, Jumps, Errors<Byte, E> {
-    override var to: Int = -1 // unused
-
+class ByteJumpTable<E>(val map: IntMap<Int>, override var to: Int) : Instruction<Byte, E>, Jumps, Errors<Byte, E> {
     private var unexpected = ErrorItemT.Tokens<Byte>(null.unsafe(), mutableListOf())
     override var error: ParseErrorT<Byte, E> = ParseErrorT(-1, unexpected, emptySet(), emptySet())
 
     override fun onAssembly(f: (Int) -> Int): Boolean {
         map.onEach { _, v -> f(v) }
+        if (to != -1) to = f(to)
         return true
     }
 
@@ -30,9 +29,12 @@ class ByteJumpTable<E>(val map: IntMap<Int>) : Instruction<Byte, E>, Jumps, Erro
             machine.addAsHint(error)
             if (key in map) machine.jump(map[key])
             else {
-                unexpected.head = c
-                machine.addUnexpected(unexpected)
-                machine.fail()
+                if (to != -1) machine.jump(to)
+                else {
+                    unexpected.head = c
+                    machine.addUnexpected(unexpected)
+                    machine.fail()
+                }
             }
         } else machine.needInput(error.expected)
     }
@@ -44,7 +46,7 @@ class ByteJumpTable<E>(val map: IntMap<Int>) : Instruction<Byte, E>, Jumps, Erro
     }
 
     override fun copy(): Instruction<Byte, E> {
-        val new = ByteJumpTable<E>(map)
+        val new = ByteJumpTable<E>(map, to)
 
         return new
     }

@@ -1,6 +1,8 @@
 package parsley
 
 fun <I, E, A, B> Parser<I, E, A>.map(f: (A) -> B): Parser<I, E, B> = Parser.pure(f).ap(this)
+fun <I, E, A, B> Parser<I, E, A>.map(f: Function1<A, B>): Parser<I, E, B> =
+    Parser.pure { a: A -> f(a) }.ap(this)
 
 fun <I, E, A> Parser<I, E, A>.void(): Parser<I, E, Unit> = constant(Unit)
 

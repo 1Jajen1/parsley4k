@@ -4,10 +4,11 @@ include ':api'
 include ':api:generic'
 include ':api:char'
 include ':api:byte'
+
 include ':compiler'
 
-include ':api:shared'
-include ':compiler:shared'
+include ':api:shared-api'
+include ':compiler:shared-compiler'
 
 include ':benchmarks'
 include ':benchmarks:genericParser'

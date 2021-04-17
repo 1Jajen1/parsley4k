@@ -1,6 +1,7 @@
 package benchmarks.parsers.generic
 
 import parsley.Either
+import parsley.ParseResult
 import parsley.Parser
 import parsley.chunk
 import parsley.alt
@@ -114,4 +115,4 @@ private val genericJsonRootParser = Parser.run {
 private val genericCompiledJsonParser = genericJsonRootParser.compile()
 
 fun genericParse(inp: Array<Char>): Any = genericCompiledJsonParser.parse(inp)
-    .takeIf { it is Either.Right }!!
+    .takeIf { it is ParseResult.Done }!!

@@ -23,7 +23,7 @@ kotlin {
         all {
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
-                api project(':api:shared')
+                api project(':api:shared-api')
                 api "kotlin-pretty:kotlin-pretty:0.6.0"
             }
         }

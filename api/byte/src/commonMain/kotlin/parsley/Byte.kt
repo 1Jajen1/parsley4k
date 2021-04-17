@@ -46,7 +46,7 @@ fun interface BytePredicate : Predicate<Byte> {
     fun invokeP(c: Byte): Boolean
 }
 
-fun interface ByteFunc<out A> : (Byte) -> A {
+fun interface ByteFunc<out A> : Function1<Byte, A> {
     override fun invoke(p1: Byte): A = invokeP(p1)
     fun invokeP(p1: Byte): A
 }

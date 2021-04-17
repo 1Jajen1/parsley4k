@@ -20,7 +20,7 @@ kotlin {
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
                 api("org.jetbrains.kotlinx:kotlinx-collections-immutable:$kotlinx_immutable_version")
-                api project(':compiler:shared')
+                api project(':compiler:shared-compiler')
             }
         }
     }

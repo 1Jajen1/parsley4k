@@ -41,7 +41,7 @@ fun interface CharPredicate : Predicate<Char> {
     fun invokeP(c: Char): Boolean
 }
 
-fun interface CharFunc<out A> : (Char) -> A {
+fun interface CharFunc<out A> : Function1<Char, A> {
     override fun invoke(p1: Char): A = invokeP(p1)
     fun invokeP(p1: Char): A
 }

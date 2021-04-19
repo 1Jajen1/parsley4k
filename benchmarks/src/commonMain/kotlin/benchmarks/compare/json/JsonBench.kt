@@ -14,10 +14,13 @@ import kotlinx.serialization.json.Json
 @State(Scope.Benchmark)
 open class JsonBench {
 
+    /*
     @Benchmark
     open fun jsonParsleyGeneric() {
         genericParse(jsonSample1KArr)
     }
+
+     */
 
     @Benchmark
     open fun jsonParsleyString() {
@@ -29,6 +32,7 @@ open class JsonBench {
         charTrieParse(jsonSample1KCharArr)
     }
 
+    /*
     @Benchmark
     open fun jsonParsleyByte() {
         byteParse(jsonSample1KByteArr)
@@ -49,8 +53,13 @@ open class JsonBench {
         OptimizedJsonGrammar().parseToEnd(jsonSample1K)
     }
 
+     */
+
+    /*
     @Benchmark
     open fun jsonKotlinxDeserializer() {
         Json.parseToJsonElement(jsonSample1K)
     }
+
+     */
 }

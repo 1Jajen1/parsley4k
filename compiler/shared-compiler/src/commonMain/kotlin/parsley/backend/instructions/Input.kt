@@ -50,6 +50,17 @@ class Satisfy_<I, E>(val f: Predicate<I>, expected: Set<ErrorItem<I>>) : Instruc
     override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
 }
 
+class SatisfyNoFail<I, E>(val f: Predicate<I>) : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        if (machine.hasMore()) {
+            val el = machine.take()
+            if (f(el)) machine.consume()
+        } else machine.needInput(onFail = {})
+    }
+
+    override fun toString(): String = "SatisfyNoFail"
+}
+
 class Single<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         if (machine.hasMore()) {
@@ -87,6 +98,17 @@ class Single_<I, E>(val i: I, expected: Set<ErrorItem<I>>) : Instruction<I, E>, 
 
     private var unexpected = ErrorItemT.Tokens<I>(null.unsafe(), mutableListOf())
     override var error = ParseErrorT<I, E>(-1, unexpected, expected, emptySet())
+}
+
+class SingleNoFail<I, E>(val i: I) : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {
+        if (machine.hasMore()) {
+            val el = machine.take()
+            if (el == i) machine.consume()
+        } else machine.needInput(onFail = {})
+    }
+
+    override fun toString(): String = "SingleNoFail"
 }
 
 // Optimized concatenated methods

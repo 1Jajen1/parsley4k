@@ -55,6 +55,20 @@ class SatisfyByte_<E>(val p: BytePredicate) : Instruction<Byte, E>, Errors<Byte,
         ParseErrorT(-1, unexpected, emptySet(), emptySet())
 }
 
+class SatisfyByteNoFail<E>(val p: BytePredicate) : Instruction<Byte, E> {
+    override fun apply(machine: AbstractStackMachine<Byte, E>) {
+        val machine = machine.unsafe<ByteArrayStackMachine<E>>()
+        if (machine.hasMore()) {
+            val c = machine.takeP()
+            if (p.invokeP(c)) {
+                machine.consume()
+            }
+        } else machine.needInput(onFail = {})
+    }
+
+    override fun toString(): String = "SatisfyByteNoFail"
+}
+
 class SatisfyByteMany<E>(val p: BytePredicate) : Instruction<Byte, E> {
     private var st: Int = Int.MAX_VALUE
     override fun apply(machine: AbstractStackMachine<Byte, E>) {

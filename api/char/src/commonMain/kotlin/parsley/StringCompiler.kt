@@ -18,21 +18,25 @@ import parsley.backend.instructions.SatisfyChar
 import parsley.backend.instructions.SatisfyCharMany
 import parsley.backend.instructions.SatisfyCharMany_
 import parsley.backend.instructions.SatisfyCharMap
+import parsley.backend.instructions.SatisfyCharNoFail
 import parsley.backend.instructions.SatisfyChar_
 import parsley.backend.instructions.SatisfyChars_
 import parsley.backend.instructions.SatisfyMany
 import parsley.backend.instructions.SatisfyMany_
 import parsley.backend.instructions.SatisfyMap
 import parsley.backend.instructions.SatisfyN_
+import parsley.backend.instructions.SatisfyNoFail
 import parsley.backend.instructions.Satisfy_
 import parsley.backend.instructions.Single
 import parsley.backend.instructions.SingleChar
 import parsley.backend.instructions.SingleCharMany
 import parsley.backend.instructions.SingleCharMany_
+import parsley.backend.instructions.SingleCharNoFail
 import parsley.backend.instructions.SingleChar_
 import parsley.backend.instructions.SingleMany
 import parsley.backend.instructions.SingleMany_
 import parsley.backend.instructions.SingleN_
+import parsley.backend.instructions.SingleNoFail
 import parsley.backend.instructions.Single_
 import parsley.backend.instructions.StringToCharList
 import parsley.backend.instructions.ToNative
@@ -71,6 +75,14 @@ fun <E> Method<Char, E>.replaceMethod() {
     while (curr < size) {
         val el = get(curr)
         when {
+            el is SingleNoFail -> {
+                removeAt(curr)
+                add(curr, SingleCharNoFail(el.i))
+            }
+            el is SatisfyNoFail && el.f is CharPredicate -> {
+                removeAt(curr)
+                add(curr, SatisfyCharNoFail(el.f.unsafe()))
+            }
             el is ToNative -> {
                 removeAt(curr)
                 add(curr, CharListToString())

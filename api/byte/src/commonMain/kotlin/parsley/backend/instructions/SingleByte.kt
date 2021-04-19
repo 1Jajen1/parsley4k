@@ -54,6 +54,20 @@ class SingleByte_<E>(val c: Byte) : Instruction<Byte, E>, Errors<Byte, E> {
         ParseErrorT(-1, unexpected, emptySet(), emptySet())
 }
 
+class SingleByteNoFail<E>(val c: Byte) : Instruction<Byte, E> {
+    override fun apply(machine: AbstractStackMachine<Byte, E>) {
+        val machine = machine.unsafe<ByteArrayStackMachine<E>>()
+        if (machine.hasMore()) {
+            val el = machine.takeP()
+            if (el == c) {
+                machine.consume()
+            }
+        } else machine.needInput(onFail = {})
+    }
+
+    override fun toString(): String = "SingleByteNoFail($c)"
+}
+
 class SingleByteMany<E>(val c: Byte) : Instruction<Byte, E> {
     private var st: Int = Int.MAX_VALUE
     override fun apply(machine: AbstractStackMachine<Byte, E>) {

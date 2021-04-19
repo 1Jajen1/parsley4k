@@ -39,9 +39,11 @@ import parsley.backend.instructions.ResetOffsetOnFail
 import parsley.backend.instructions.ResetOnFailAndFailOnOk
 import parsley.backend.instructions.SatisfyMany
 import parsley.backend.instructions.SatisfyMany_
+import parsley.backend.instructions.SatisfyNoFail
 import parsley.backend.instructions.Satisfy_
 import parsley.backend.instructions.SingleMany
 import parsley.backend.instructions.SingleMany_
+import parsley.backend.instructions.SingleNoFail
 import parsley.backend.instructions.Single_
 import parsley.collections.IntMap
 import parsley.frontend.Alt
@@ -366,6 +368,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
 ): Unit {
     val alternatives = toAltList(p)
 
+    // TODO properly benchmark this
     val singles = mutableListOf<Single<I>>()
     val satisfies = mutableListOf<Satisfy<I>>()
     alternatives.forEach { p ->
@@ -381,6 +384,14 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
         val func = settings.optimise.rebuildPredicate.f(singles.toTypedArray(), satisfies.map { it.match }.toTypedArray())
         val s = Alt(Satisfy(func), alternatives.last())
         callRecursive(s)
+        return
+    }
+
+    if (ctx.discard && alternatives.size == 2 && (p.first is Single<*> || p.first is Satisfy<*>) && p.second is Pure) {
+        when (val fst = p.first) {
+            is Single<*> -> ctx += SingleNoFail(fst.i.unsafe())
+            is Satisfy<*> -> ctx += SatisfyNoFail(fst.match.unsafe())
+        }
         return
     }
 

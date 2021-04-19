@@ -1,5 +1,6 @@
 package parsley.backend.instructions
 
+import parsley.CharPredicate
 import parsley.CharTokensT
 import parsley.ErrorItem
 import parsley.ParseErrorT
@@ -11,7 +12,6 @@ import parsley.unsafe
 import kotlin.math.max
 import kotlin.math.min
 
-// TODO Add warning after compiling that this boxes
 class SingleChar<E>(val c: Char) : Instruction<Char, E>, Errors<Char, E> {
     override fun apply(machine: AbstractStackMachine<Char, E>) {
         val machine = machine.unsafe<StringStackMachine<E>>()
@@ -53,6 +53,20 @@ class SingleChar_<E>(val c: Char) : Instruction<Char, E>, Errors<Char, E> {
     private var unexpected = CharTokensT(' ', charArrayOf())
     override var error: ParseErrorT<Char, E> =
         ParseErrorT(-1, unexpected, emptySet(), emptySet())
+}
+
+class SingleCharNoFail<E>(val c: Char) : Instruction<Char, E> {
+    override fun apply(machine: AbstractStackMachine<Char, E>) {
+        val machine = machine.unsafe<StringStackMachine<E>>()
+        if (machine.hasMore()) {
+            val el = machine.takeP()
+            if (el == c) {
+                machine.consume()
+            }
+        } else machine.needInput(onFail = {})
+    }
+
+    override fun toString(): String = "SingleCharNoFail"
 }
 
 class SingleCharMany<E>(val c: Char) : Instruction<Char, E> {

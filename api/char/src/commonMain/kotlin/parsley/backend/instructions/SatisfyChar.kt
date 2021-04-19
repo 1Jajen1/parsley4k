@@ -56,6 +56,20 @@ class SatisfyChar_<E>(val p: CharPredicate) : Instruction<Char, E>, Errors<Char,
         ParseErrorT(-1, unexpected, emptySet(), emptySet())
 }
 
+class SatisfyCharNoFail<E>(val p: CharPredicate) : Instruction<Char, E> {
+    override fun apply(machine: AbstractStackMachine<Char, E>) {
+        val machine = machine.unsafe<StringStackMachine<E>>()
+        if (machine.hasMore()) {
+            val c = machine.takeP()
+            if (p.invokeP(c)) {
+                machine.consume()
+            }
+        } else machine.needInput(onFail = {})
+    }
+
+    override fun toString(): String = "SatisfyCharNoFail"
+}
+
 class SatisfyCharMany<E>(val p: CharPredicate) : Instruction<Char, E> {
     private var st: Int = Int.MAX_VALUE
     override fun apply(machine: AbstractStackMachine<Char, E>) {

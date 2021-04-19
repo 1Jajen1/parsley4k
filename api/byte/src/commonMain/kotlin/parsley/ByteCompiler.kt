@@ -19,21 +19,25 @@ import parsley.backend.instructions.SatisfyByte
 import parsley.backend.instructions.SatisfyByteMany
 import parsley.backend.instructions.SatisfyByteMany_
 import parsley.backend.instructions.SatisfyByteMap
+import parsley.backend.instructions.SatisfyByteNoFail
 import parsley.backend.instructions.SatisfyByte_
 import parsley.backend.instructions.SatisfyBytes_
 import parsley.backend.instructions.SatisfyMany
 import parsley.backend.instructions.SatisfyMany_
 import parsley.backend.instructions.SatisfyMap
 import parsley.backend.instructions.SatisfyN_
+import parsley.backend.instructions.SatisfyNoFail
 import parsley.backend.instructions.Satisfy_
 import parsley.backend.instructions.Single
 import parsley.backend.instructions.SingleByte
 import parsley.backend.instructions.SingleByteMany
 import parsley.backend.instructions.SingleByteMany_
+import parsley.backend.instructions.SingleByteNoFail
 import parsley.backend.instructions.SingleByte_
 import parsley.backend.instructions.SingleMany
 import parsley.backend.instructions.SingleMany_
 import parsley.backend.instructions.SingleN_
+import parsley.backend.instructions.SingleNoFail
 import parsley.backend.instructions.Single_
 import parsley.backend.instructions.ToNative
 import parsley.backend.instructions.convert
@@ -69,6 +73,14 @@ fun <E> Method<Byte, E>.replaceMethod() {
     while (curr < size) {
         val el = get(curr)
         when {
+            el is SingleNoFail -> {
+                removeAt(curr)
+                add(curr, SingleByteNoFail(el.i))
+            }
+            el is SatisfyNoFail && el.f is BytePredicate -> {
+                removeAt(curr)
+                add(curr, SatisfyByteNoFail(el.f.unsafe()))
+            }
             el is ToNative -> {
                 removeAt(curr)
                 add(curr, ByteListToArr())

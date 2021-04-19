@@ -3,10 +3,18 @@ package parsley.backend
 import parsley.Method
 import parsley.backend.instructions.Apply
 import parsley.backend.instructions.Call
+import parsley.backend.instructions.Catch
+import parsley.backend.instructions.InputCheck
 import parsley.backend.instructions.Jump
+import parsley.backend.instructions.JumpGood
+import parsley.backend.instructions.JumpGoodAttempt
 import parsley.backend.instructions.Label
 import parsley.backend.instructions.Map
 import parsley.backend.instructions.Push
+import parsley.backend.instructions.RecoverAttempt
+import parsley.backend.instructions.RecoverAttemptWith
+import parsley.backend.instructions.RecoverWith
+import parsley.backend.instructions.Return
 import parsley.backend.instructions.SatisfyMany
 import parsley.backend.instructions.SatisfyMany_
 import parsley.backend.instructions.SatisfyN_
@@ -27,6 +35,34 @@ fun <I, E> Method<I, E>.rewriteRules(): Method<I, E> {
         val e1 = get(i)
         val e2 = get(i + 1)
         when {
+            e1 is Call && e1.recursive -> {
+                // TODO Test, also move??
+                var j = i + 1
+                while (j < size && get(j) is Label) j++
+                val to = when (val el = get(j)) {
+                    is JumpGood -> el.to
+                    is JumpGoodAttempt -> el.to
+                    else -> i
+                }
+                var z = j + 1
+                var found = false
+                while (z < size) {
+                    val el = get(z++)
+                    if (el is Label && el.id == to) { found = true; break }
+                }
+                if (z == size && found) {
+                    // Tail call
+                    removeAt(j)
+                    removeAt(i)
+                    add(i, Catch())
+                    add(i + 1, Jump(e1.to))
+                }
+            }
+            e1 is JumpGood -> {
+                val e3 = get(i + 3)
+                if (e3 is Label && e1.to == e3.id)
+                    removeAt(i--)
+            }
             e1 is Satisfy_ && e2 is Satisfy_ -> {
                 removeAt(i)
                 removeAt(i)
@@ -104,7 +140,7 @@ fun <I, E> inlinePass(
 
 // TODO Better heuristics
 fun <I, E> List<Instruction<I, E>>.checkInline(): Boolean =
-    size < 5
+    size < 5 && none { it is Call && it.recursive }
 
 fun <I, E> Method<I, E>.inline(
     toInline: IntSet,
@@ -116,6 +152,7 @@ fun <I, E> Method<I, E>.inline(
         val el = mutlist[curr++]
         if (el is Call && toInline.contains(el.to)) {
             mutlist.removeAt(--curr)
+            mutlist.add(curr++, Label(el.to))
             mutlist.addAll(curr, subs[el.to])
         }
     }

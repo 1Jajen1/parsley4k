@@ -1,5 +1,6 @@
 package parsley.backend
 
+import parsley.CompilerSettings
 import parsley.Either
 import parsley.ErrorItem
 import parsley.ParseErrorT
@@ -63,6 +64,7 @@ import parsley.frontend.Pure
 import parsley.frontend.Satisfy
 import parsley.frontend.Select
 import parsley.frontend.Single
+import parsley.frontend.ToNative
 import parsley.frontend.Unary
 import parsley.unsafe
 
@@ -70,7 +72,8 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
     @OptIn(ExperimentalStdlibApi::class)
     override suspend fun DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.step(
         p: ParserF<I, E, Any?>,
-        ctx: CodeGenContext<I, E>
+        ctx: CodeGenContext<I, E>,
+        settings: CompilerSettings<I, E>
     ): Boolean {
         when (p) {
             is Pure -> {
@@ -119,7 +122,7 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                 ctx += Label(l)
                 ctx += ResetOffsetOnFail()
             }
-            is Alt -> genAlternative(p, ctx)
+            is Alt -> genAlternative(p, ctx, settings)
             is Empty -> {
                 ctx += Fail()
             }
@@ -184,37 +187,51 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
                 }
             }
             is Many<I, E, *> -> {
-                val path = mkPath(p.inner, ctx.subs)
-                val paths = mkPaths(p.inner, ctx.subs)
-                if (path != null) {
-                    if (path.size == 1) {
-                        when (val el = path[0]) {
-                            is Matcher.Sat -> {
-                                if (ctx.discard) ctx += SatisfyMany_(el.f)
-                                else ctx += SatisfyMany(el.f)
-                            }
-                            is Matcher.El -> {
-                                if (ctx.discard) ctx += SingleMany_(el.el)
-                                else ctx += SingleMany(el.el)
-                            }
+                when (val inner = p.inner) {
+                    is Single<*> -> {
+                        if (!ctx.discard) ctx += SingleMany(inner.i.unsafe())
+                        else ctx += SingleMany_(inner.i.unsafe())
+                        return true
+                    }
+                    is Satisfy<*> -> {
+                        if (!ctx.discard) ctx += SatisfyMany(inner.match.unsafe())
+                        else ctx += SatisfyMany_(inner.match.unsafe())
+                        return true
+                    }
+                }
+                if (ctx.discard) {
+                    /* TODO This is not worth it over MatchManyN_(paths) even with tail call elimination
+                    if (p.inner is Alt) {
+                        val alt = p.inner as Alt
+                        val path = mkPath(alt.first, ctx.subs)
+                        if (path != null && path.size == 1) {
+                            val lbl = ctx.mkLabel()
+                            val let = Let(true, lbl)
+                            val parser = ApR(Many(alt.first), Alt(ApR(alt.second, let), Pure(Unit)))
+                            ctx.subs[lbl] = parser
+                            callRecursive(let)
+                            return true
                         }
-                    } else {
-                        ctx += MatchMany_(path)
                     }
-                } else if (paths != null) {
-                    ctx += MatchManyN_(paths)
+                     */
+
+                    val paths = mkPaths(p.inner, ctx.subs)
+                    if (paths != null && paths.size > 1) {
+                        ctx += MatchManyN_(paths)
+                        return true
+                    }
+                }
+
+                val handler = ctx.mkLabel()
+                val jumpL = ctx.mkLabel()
+                ctx += InputCheck(handler)
+                ctx += Label(jumpL)
+                callRecursive(p.inner)
+                ctx += Label(handler)
+                if (ctx.discard) {
+                    ctx += Many_(jumpL)
                 } else {
-                    val handler = ctx.mkLabel()
-                    val jumpL = ctx.mkLabel()
-                    ctx += InputCheck(handler)
-                    ctx += Label(jumpL)
-                    callRecursive(p.inner)
-                    ctx += Label(handler)
-                    if (ctx.discard) {
-                        ctx += Many_(jumpL)
-                    } else {
-                        ctx += parsley.backend.instructions.Many(jumpL)
-                    }
+                    ctx += parsley.backend.instructions.Many(jumpL)
                 }
             }
             is ChunkOf -> {
@@ -264,6 +281,10 @@ class DefaultCodeGenStep<I, E> : CodeGenStep<I, E> {
             is Eof -> {
                 ctx += parsley.backend.instructions.Eof()
                 if (!ctx.discard) ctx += Push(Unit)
+            }
+            is ToNative -> {
+                callRecursive(p.inner)
+                if (!ctx.discard) ctx += parsley.backend.instructions.ToNative()
             }
             else -> return false
         }
@@ -340,23 +361,46 @@ private fun <I, E> mkPaths(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, An
 @OptIn(ExperimentalStdlibApi::class)
 private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlternative(
     p: Alt<I, E, Any?>,
-    ctx: CodeGenContext<I, E>
+    ctx: CodeGenContext<I, E>,
+    settings: CompilerSettings<I, E>
 ): Unit {
-    val (table, fallback, expected, overlaps) = toJumpTable(p, ctx.subs)
+    val alternatives = toAltList(p)
+
+    val singles = mutableListOf<Single<I>>()
+    val satisfies = mutableListOf<Satisfy<I>>()
+    alternatives.forEach { p ->
+        if (p is Single<*>) singles.add(p.unsafe())
+        else if (p is Satisfy<*>) satisfies.add(p.unsafe())
+    }
+    if (alternatives.size > 1 && singles.size + satisfies.size == alternatives.size) {
+        val func = settings.optimise.rebuildPredicate.f(singles.toTypedArray(), satisfies.map { it.match }.toTypedArray())
+        val s = Satisfy(func)
+        callRecursive(s)
+        return
+    } else if (alternatives.size > 2 && alternatives.last() is Pure && singles.size + satisfies.size == alternatives.size - 1) {
+        val func = settings.optimise.rebuildPredicate.f(singles.toTypedArray(), satisfies.map { it.match }.toTypedArray())
+        val s = Alt(Satisfy(func), alternatives.last())
+        callRecursive(s)
+        return
+    }
+
+    val (table, fallback, expected, overlaps) = toJumpTable(alternatives, ctx.subs)
 
     suspend fun <A> DeepRecursiveScope<ParserF<I, E, A>, Unit>.asChoice(xs: List<ParserF<I, E, A>>): Unit =
         when (xs.size) {
             1 -> callRecursive(xs.first())
             else -> {
-                val fst = xs.first()
-                if (p.first is Attempt) {
-                    if (p.second is Pure) {
+                val fst = xs[0]
+                val snd = xs[1]
+                if (fst is Attempt) {
+                    if (snd is Pure) {
                         val badLabel = ctx.mkLabel()
                         ctx += InputCheck(badLabel)
                         callRecursive(fst)
+                        // TODO Do I not need JumpGood here?
                         ctx += Label(badLabel)
                         if (ctx.discard) ctx += RecoverAttempt()
-                        else ctx += RecoverAttemptWith(p.second.unsafe<Pure<Any?>>().a)
+                        else ctx += RecoverAttemptWith(snd.a)
                     } else {
                         val skip = ctx.mkLabel()
                         val badLabel = ctx.mkLabel()
@@ -368,7 +412,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
                         ctx += Label(skip)
                     }
                 } else {
-                    if (p.second is Pure) {
+                    if (snd is Pure) {
                         val skip = ctx.mkLabel()
                         val badLabel = ctx.mkLabel()
                         ctx += InputCheck(badLabel)
@@ -376,7 +420,7 @@ private suspend fun <I, E> DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.genAlte
                         ctx += JumpGood(skip)
                         ctx += Label(badLabel)
                         if (ctx.discard) ctx += Catch()
-                        else ctx += RecoverWith(p.second.unsafe<Pure<Any?>>().a)
+                        else ctx += RecoverWith(snd.a)
                         ctx += Label(skip)
                     } else {
                         val skip = ctx.mkLabel()
@@ -447,14 +491,13 @@ private fun <I, E> toAltList(
 private data class Tuple4<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 private fun <I, E> toJumpTable(
-    p: Alt<I, E, Any?>,
+    alternatives: List<ParserF<I, E, Any?>>,
     subs: IntMap<ParserF<I, E, Any?>>
 ): Tuple4<MutableMap<I, MutableList<ParserF<I, E, Any?>>>, List<ParserF<I, E, Any?>>, Set<ErrorItem<I>>, Boolean> {
     val table = mutableMapOf<I, MutableList<ParserF<I, E, Any?>>>()
     val fallback = mutableListOf<Pair<Predicate<I>, ParserF<I, E, Any?>>>()
     val expectedBuf = mutableSetOf<ErrorItem<I>>()
 
-    val alternatives = toAltList(p)
     alternatives.forEach {
         it.findLeading(subs).fold({ pred ->
             fallback.add(pred to it)
@@ -471,7 +514,7 @@ private fun <I, E> toJumpTable(
 }
 
 fun <I, E> getExpected(p: ParserF<I, E, Any?>, subs: IntMap<ParserF<I, E, Any?>>): Set<ErrorItem<I>>? {
-    val expected = mkPath(p, subs)?.map  {
+    val expected = mkPath(p, subs)?.map {
         when (it) {
             is Matcher.Eof -> setOf(ErrorItem.EndOfInput)
             is Matcher.El -> it.expected

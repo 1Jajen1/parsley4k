@@ -17,6 +17,7 @@ import parsley.frontend.LetBoundStep
 import parsley.frontend.OptimiseStep
 import parsley.frontend.ParserF
 import parsley.frontend.RelabelStep
+import parsley.frontend.Single
 import parsley.frontend.findLetBound
 import parsley.frontend.insertLets
 import parsley.frontend.optimise
@@ -60,7 +61,7 @@ fun <I, E, A> ParserF<I, E, A>.compile(
     }
 
     // Step 3: Code gen
-    val (mainI, subI, l) = mainP.codeGen(subs, highestL, settings.backend.codegenSteps)
+    val (mainI, subI, l) = mainP.codeGen(subs, highestL, settings.backend.codegenSteps, settings)
 
     if (settings.logging.printInitialInstr) {
         println("Parser:Instr:initial")
@@ -240,7 +241,8 @@ data class BackendSettings<I, E>(
 )
 
 data class OptimiseSettings<I, E>(
-    val analyseSatisfy: AnalyseSatisfy<I> = AnalyseSatisfy()
+    val analyseSatisfy: AnalyseSatisfy<I> = AnalyseSatisfy(),
+    val rebuildPredicate: RebuildPredicate<I> = RebuildPredicate()
 )
 
 data class LogSettings(
@@ -279,6 +281,12 @@ fun <I, E> defaultOptimiseSettings(): OptimiseSettings<I, E> = OptimiseSettings(
 fun defaultLogSettings(): LogSettings = LogSettings()
 
 class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
+
+class RebuildPredicate<I>(
+    val f: (sing: Array<Single<I>>, sat: Array<Predicate<I>>) -> Predicate<I> = { sing, sat ->
+        Predicate { i -> sing.any { it.i == i } || sat.any { it(i) } }
+    }
+)
 
 /**
  * TODO:

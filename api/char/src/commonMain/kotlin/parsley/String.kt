@@ -1,10 +1,10 @@
 package parsley
 
-import parsley.frontend.CharListToString
 import parsley.frontend.Many
 import parsley.frontend.ChunkOf
 import parsley.frontend.MatchOf
 import parsley.frontend.Satisfy
+import parsley.frontend.ToNative
 
 fun Parser.Companion.char(c: Char): Parser<Char, Nothing, Char> = single(c)
 
@@ -14,16 +14,16 @@ fun Parser.Companion.string(str: String): Parser<Char, Nothing, String> =
     }
 
 fun <E> Parser<Char, E, Char>.many(): Parser<Char, E, String> =
-    Parser(CharListToString(Many(parserF)))
+    Parser(ToNative(Many(parserF)))
 
 fun <E> Parser<Char, E, Any?>.chunkOf(): Parser<Char, E, String> =
-    Parser(CharListToString(ChunkOf(parserF)))
+    Parser(ToNative(ChunkOf(parserF)))
 
 fun <E> Parser<Char, E, Any?>.stringOf(): Parser<Char, E, String> =
     chunkOf()
 
 fun <E, A> Parser<Char, E, A>.matchOf(): Parser<Char, E, Pair<String, A>> =
-    Parser(CharListToString<E>(MatchOf(parserF).unsafe()).unsafe())
+    Parser(ToNative<Char, E, String>(MatchOf(parserF).unsafe()).unsafe())
 
 fun Parser.Companion.satisfy(expected: Set<ErrorItem<Char>> = emptySet(), p: CharPredicate): Parser<Char, Nothing, Char> =
     Parser(Satisfy(p, expected))

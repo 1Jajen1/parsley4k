@@ -1,5 +1,6 @@
 package parsley.backend
 
+import parsley.CompilerSettings
 import parsley.Method
 import parsley.collections.IntMap
 import parsley.collections.IntSet
@@ -9,14 +10,15 @@ import parsley.frontend.ParserF
 fun <I, E> ParserF<I, E, Any?>.codeGen(
     subs: IntMap<ParserF<I, E, Any?>>,
     label: Int,
-    codeGenSteps: Array<CodeGenStep<I, E>>
+    codeGenSteps: Array<CodeGenStep<I, E>>,
+    settings: CompilerSettings<I, E>
 ): Triple<Method<I, E>, IntMap<Method<I, E>>, Int> {
     val ctx = CodeGenContext(subs, label)
 
     // Generate main and sub parsers
     DeepRecursiveFunction<ParserF<I, E, Any?>, Unit> { p ->
         codeGenSteps.forEach { s ->
-            s.run { if (step(p, ctx)) return@DeepRecursiveFunction }
+            s.run { if (step(p, ctx, settings)) return@DeepRecursiveFunction }
         }
         throw IllegalStateException("No step could generate code for $p")
     }(this)
@@ -24,7 +26,7 @@ fun <I, E> ParserF<I, E, Any?>.codeGen(
     val sub = subs.mapValues { p ->
         DeepRecursiveFunction<ParserF<I, E, Any?>, Unit> { p ->
             codeGenSteps.forEach { s ->
-                s.run { if (step(p, ctx)) return@DeepRecursiveFunction }
+                s.run { if (step(p, ctx, settings)) return@DeepRecursiveFunction }
             }
             throw IllegalStateException("No step could generate code for $p")
         }(p)
@@ -40,7 +42,7 @@ fun <I, E> ParserF<I, E, Any?>.codeGen(
         ctx.discard = true
         DeepRecursiveFunction<ParserF<I, E, Any?>, Unit> { p ->
             codeGenSteps.forEach { s ->
-                s.run { if (step(p, ctx)) return@DeepRecursiveFunction }
+                s.run { if (step(p, ctx, settings)) return@DeepRecursiveFunction }
             }
         }(subs[key])
         sub[value] = ctx.collect()
@@ -91,7 +93,8 @@ interface CodeGenStep<I, E> {
     @OptIn(ExperimentalStdlibApi::class)
     suspend fun DeepRecursiveScope<ParserF<I, E, Any?>, Unit>.step(
         p: ParserF<I, E, Any?>,
-        ctx: CodeGenContext<I, E>
+        ctx: CodeGenContext<I, E>,
+        settings: CompilerSettings<I, E>
     ): Boolean
 }
 

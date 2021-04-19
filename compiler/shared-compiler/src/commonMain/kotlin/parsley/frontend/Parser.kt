@@ -6,45 +6,30 @@ import parsley.ParseError
 import parsley.Predicate
 import pretty.Doc
 import pretty.align
-import pretty.column
 import pretty.doc
-import pretty.enclose
 import pretty.encloseSep
-import pretty.fill
 import pretty.fillBreak
 import pretty.flatAlt
 import pretty.group
-import pretty.hang
-import pretty.indent
 import pretty.line
+import pretty.list
 import pretty.nest
-import pretty.nesting
-import pretty.nil
 import pretty.plus
 import pretty.pretty
-import pretty.semiBraces
 import pretty.softLine
-import pretty.softLineBreak
 import pretty.spaced
 import pretty.symbols.comma
 import pretty.symbols.lBrace
-import pretty.symbols.lParen
-import pretty.symbols.parens
 import pretty.symbols.rBrace
-import pretty.symbols.rParen
 import pretty.symbols.sQuotes
 import pretty.symbols.space
 import pretty.text
-import pretty.width
 
 abstract class ParserF<out I, out E, out A> {
     abstract fun small(): Boolean
     abstract fun pprint(): Doc<Nothing>
     override fun toString(): String = pprint().pretty(maxWidth = 100, ribbonWidth = 0.5F)
 }
-
-// Marker if we can distribute this parser over an orElse chain
-interface DistributesOrElse
 
 abstract class Unary<I, E, A, out B>(
     val inner: ParserF<I, E, A>
@@ -200,7 +185,7 @@ class Many<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, List<A>>(p) {
     override fun pprint(): Doc<Nothing> = cons(inner, "Many")
 }
 
-class ChunkOf<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, List<I>>(p), DistributesOrElse {
+class ChunkOf<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, List<I>>(p) {
     override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, Any?>): ParserF<I, E, List<I>> =
         ChunkOf(inner)
@@ -208,12 +193,20 @@ class ChunkOf<I, E>(p: ParserF<I, E, Any?>) : Unary<I, E, Any?, List<I>>(p), Dis
     override fun pprint(): Doc<Nothing> = cons(inner, "ChunkOf")
 }
 
-class MatchOf<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, Pair<List<I>, A>>(p), DistributesOrElse {
+class MatchOf<I, E, A>(p: ParserF<I, E, A>) : Unary<I, E, A, Pair<List<I>, A>>(p) {
     override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, Pair<List<I>, A>> =
         MatchOf(inner)
 
     override fun pprint(): Doc<Nothing> = cons(inner, "MatchOf")
+}
+
+class ToNative<I, E, Nat>(p: ParserF<I, E, List<I>>) : Unary<I, E, List<I>, Nat>(p) {
+    override fun small(): Boolean = inner.small()
+    override fun copy(inner: ParserF<I, E, List<I>>): ParserF<I, E, Nat> =
+        ToNative(inner)
+
+    override fun pprint(): Doc<Nothing> = cons(inner, "ToNative")
 }
 
 object Eof : ParserF<Nothing, Nothing, Nothing>() {
@@ -222,7 +215,7 @@ object Eof : ParserF<Nothing, Nothing, Nothing>() {
 }
 
 // Failure
-class Label<I, E, A>(val label: String?, p: ParserF<I, E, A>) : Unary<I, E, A, A>(p), DistributesOrElse {
+class Label<I, E, A>(val label: String?, p: ParserF<I, E, A>) : Unary<I, E, A, A>(p) {
     override fun small(): Boolean = inner.small()
     override fun copy(inner: ParserF<I, E, A>): ParserF<I, E, A> =
         Label(label, inner)

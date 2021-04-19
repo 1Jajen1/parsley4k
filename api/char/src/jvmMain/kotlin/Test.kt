@@ -1,38 +1,48 @@
-import parsley.ParseError
 import parsley.Parser
 import parsley.alt
 import parsley.char
 import parsley.choice
+import parsley.compile
 import parsley.followedBy
 import parsley.followedByDiscard
-import parsley.many
-import parsley.map
-import parsley.zip
-import parsley.stringOf
-import parsley.orNull
-import parsley.pure
-import parsley.void
-import parsley.compile
 import parsley.hide
 import parsley.label
-import parsley.negLookAhead
+import parsley.many
+import parsley.map
 import parsley.orElse
+import parsley.orNull
 import parsley.pretty
+import parsley.pure
 import parsley.recursive
-import parsley.region
 import parsley.satisfy
 import parsley.some
 import parsley.string
+import parsley.stringOf
+import parsley.void
+import parsley.zip
 
 fun main() {
+    // TODO Manual cuts with a cut operator.
+    //  Invariant: The handler above a call to Cut is always orElse
+    //  => Then cut can just throw away that handler
+    //  => Attempt(ApR(Cut(), p)) = ApR(Cut(), p) and similar for others
+    //  => Alt(ApR(Cut(), p)) is the normal form that we always need
+    //  => In a Jumptable Cut either skips the fallback or is not generated if no
+    //   fallback exist
+    // Cut improves perf by reducing needless backtracking and enables throwing
+    //  away input when using streaming to better enable constant memory use
+    //  => When new input is pushed, we can throw away all previous input up to
+    //     inputCheckStack[0] (last/oldest) or all if the inputCheckStack is empty
+    /*
     val p = Parser.run {
         char('a').many()
     }.compile()
 
-    val chunks = listOf("aaaa", "aaa", "")
+    val chunks = listOf("aaaa", "aaa")
     val init = p.parseStreaming("a".toCharArray())
     val res = chunks.fold(init) { acc, s -> acc.pushChunk(s.toCharArray()) }
-
+        .pushEndOfInput()
+     */
     val inp = jsonSample1K.toCharArray()
     compiledJsonParser.parse(inp)
         .fold({ res, _ ->

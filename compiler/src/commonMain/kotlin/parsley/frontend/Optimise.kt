@@ -221,6 +221,7 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
             is Many<I, E, *> -> {
                 when (val pInner = callRecursive(p.inner)) {
                     is Pure -> throw IllegalStateException("Many never consumes input and thus never finishes")
+                    // is Eof ???? What would this imply? This either diverges into an infinite loop or is Pure [Unit]...
                     is Empty -> Pure(emptyList())
                     is Many<I, E, *> -> Ap(Pure { listOf(it) }, pInner)
                     else -> Many(pInner)
@@ -258,9 +259,7 @@ class DefaultOptimiseStep<I, E> : OptimiseStep<I, E> {
             }
             is Unary<I, E, *, Any?> -> {
                 val inner = callRecursive(p.inner)
-                if (inner is Alt && p is DistributesOrElse) {
-                    Alt(p.copy(inner.first.unsafe()), p.copy(inner.second.unsafe()))
-                } else p.copy(inner.unsafe())
+                p.copy(inner.unsafe())
             }
             is Binary<I, E, *, *, Any?> -> {
                 p.copy(

@@ -1,9 +1,8 @@
 package parsley
 
-import parsley.backend.CodeGenContext
-import parsley.backend.CodeGenStep
 import parsley.backend.instructions.CharEof
 import parsley.backend.instructions.CharJumpTable
+import parsley.backend.instructions.CharListToString
 import parsley.backend.instructions.Eof
 import parsley.backend.instructions.JumpTable
 import parsley.backend.instructions.MatchManyCharN_
@@ -36,63 +35,30 @@ import parsley.backend.instructions.SingleMany_
 import parsley.backend.instructions.SingleN_
 import parsley.backend.instructions.Single_
 import parsley.backend.instructions.StringToCharList
+import parsley.backend.instructions.ToNative
 import parsley.backend.instructions.convert
 import parsley.collections.IntMap
-import parsley.frontend.CharListToString
-import parsley.frontend.OptimiseStep
-import parsley.frontend.ParserF
 import kotlin.jvm.JvmName
 
 @JvmName("compileString")
 @OptIn(ExperimentalStdlibApi::class)
 fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
     val settings = defaultSettings<Char, E>()
-        //.copy(optimise = OptimiseSettings(analyseSatisfy = AnalyseSatisfy(generateSequence(Char.MIN_VALUE) { c -> if (c != Char.MAX_VALUE) c.inc() else null })))
-        .addOptimiseStep(
-            object : OptimiseStep<Char, E> {
-                override suspend fun DeepRecursiveScope<ParserF<Char, E, Any?>, ParserF<Char, E, Any?>>.step(
-                    p: ParserF<Char, E, Any?>,
-                    subs: IntMap<ParserF<Char, E, Any?>>,
-                    settings: CompilerSettings<Char, E>
-                ): ParserF<Char, E, Any?> {
-                    return when {
-                        p is parsley.frontend.Satisfy<*> && p.match is CharPredicate && settings.optimise.analyseSatisfy.f.any { true } -> {
-                            val accepted = mutableSetOf<Char>()
-                            val rejected = mutableSetOf<Char>()
-                            for (c in settings.optimise.analyseSatisfy.f) {
-                                if (p.match.unsafe<CharPredicate>().invokeP(c))
-                                    accepted.add(c)
-                                else rejected.add(c)
-                            }
-                            parsley.frontend.Satisfy(p.match.unsafe(), p.expected.unsafe(), accepted, rejected)
-                        }
-                        else -> p
-                    }
-                }
-            }
-        )
-        .addCodegenStep(
-            object : CodeGenStep<Char, E> {
-                override suspend fun DeepRecursiveScope<ParserF<Char, E, Any?>, Unit>.step(
-                    p: ParserF<Char, E, Any?>,
-                    ctx: CodeGenContext<Char, E>
-                ): Boolean {
-                    return when (p) {
-                        is CharListToString -> {
-                            callRecursive(p.inner)
-                            if (!ctx.discard) ctx += parsley.backend.instructions.CharListToString()
-                            true
-                        }
-                        else -> false
-                    }
-                }
-            }
-        ).addOptimiseStep { s, l -> replaceInstructions(s, l) }
+        .addOptimiseStep { s, l -> replaceInstructions(s, l) }
+        // .printInlinedInstr()
+        // .printFinalInstr()
+        .let {
+            it.copy(optimise = OptimiseSettings(rebuildPredicate = RebuildPredicate { sing, sat ->
+                val charArr = sing.map { it.i }.toCharArray()
+                if (sat.all { it is CharPredicate }) CharPredicate { i -> charArr.contains(i) || sat.any { it.unsafe<CharPredicate>().invokeP(i) } }
+                else CharPredicate { i -> charArr.contains(i) || sat.any { it.invoke(i) } }
+            }))
+        }
+    // .copy(optimise = OptimiseSettings(analyseSatisfy = AnalyseSatisfy(generateSequence(Char.MIN_VALUE) { c -> if (c != Char.MAX_VALUE) c.inc() else null }))).addOptimiseStep { s, l -> replaceInstructions(s, l) }
     return CompiledStringParser(
         parserF.compile(settings).toTypedArray()
     )
 }
-
 
 internal fun <E> Method<Char, E>.replaceInstructions(sub: IntMap<Method<Char, E>>, l: Int): Int {
     replaceMethod()
@@ -105,6 +71,10 @@ fun <E> Method<Char, E>.replaceMethod() {
     while (curr < size) {
         val el = get(curr)
         when {
+            el is ToNative -> {
+                removeAt(curr)
+                add(curr, CharListToString())
+            }
             el is JumpTable -> {
                 removeAt(curr)
                 val map = parsley.collections.IntMap.empty<Int>()
@@ -141,9 +111,10 @@ fun <E> Method<Char, E>.replaceMethod() {
                 removeAt(curr)
                 add(curr, SatisfyCharMany(el.f.unsafe()))
                 if (curr + 1 < size) {
-                    if (get(curr + 1) is parsley.backend.instructions.CharListToString) {
+                    if (get(curr + 1) is ToNative) {
                         removeAt(curr + 1)
                     } else {
+                        // TODO Is this reachable?
                         add(curr + 1, StringToCharList())
                     }
                 }
@@ -175,9 +146,10 @@ fun <E> Method<Char, E>.replaceMethod() {
                 removeAt(curr)
                 add(curr, SingleCharMany(el.i))
                 if (curr + 1 < size) {
-                    if (get(curr + 1) is parsley.backend.instructions.CharListToString) {
+                    if (get(curr + 1) is ToNative) {
                         removeAt(curr + 1)
                     } else {
+                        // TODO Is this reachable?
                         add(curr + 1, StringToCharList())
                     }
                 }
@@ -193,13 +165,14 @@ fun <E> Method<Char, E>.replaceMethod() {
                 val next = get(curr + 1)
                 when (next) {
                     is MkPair -> {
-                        if (curr < size - 1 && get(curr + 2) is parsley.backend.instructions.CharListToString) {
+                        if (curr < size - 1 && get(curr + 2) is ToNative) {
                             removeAt(curr + 2)
                         } else {
+                            // TODO Is this reachable?
                             add(curr + 1, StringToCharList())
                         }
                     }
-                    is parsley.backend.instructions.CharListToString -> {
+                    is ToNative -> {
                         removeAt(curr + 1)
                     }
                     else -> add(curr + 1, StringToCharList())

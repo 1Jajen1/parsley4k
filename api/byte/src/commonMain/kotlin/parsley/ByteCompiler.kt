@@ -1,10 +1,9 @@
 package parsley
 
-import parsley.backend.CodeGenContext
-import parsley.backend.CodeGenStep
 import parsley.backend.instructions.ByteArrToByteList
 import parsley.backend.instructions.ByteEof
 import parsley.backend.instructions.ByteJumpTable
+import parsley.backend.instructions.ByteListToArr
 import parsley.backend.instructions.Eof
 import parsley.backend.instructions.JumpTable
 import parsley.backend.instructions.MatchByteArr_
@@ -36,11 +35,9 @@ import parsley.backend.instructions.SingleMany
 import parsley.backend.instructions.SingleMany_
 import parsley.backend.instructions.SingleN_
 import parsley.backend.instructions.Single_
+import parsley.backend.instructions.ToNative
 import parsley.backend.instructions.convert
 import parsley.collections.IntMap
-import parsley.frontend.ByteListToArr
-import parsley.frontend.OptimiseStep
-import parsley.frontend.ParserF
 import kotlin.jvm.JvmName
 
 @JvmName("compileString")
@@ -48,51 +45,18 @@ import kotlin.jvm.JvmName
 fun <E, A> Parser<Byte, E, A>.compile(): CompiledByteParser<E, A> {
     val settings = defaultSettings<Byte, E>()
         //.copy(optimise = OptimiseSettings(analyseSatisfy = AnalyseSatisfy(generateSequence(Byte.MIN_VALUE) { c -> if (c != Byte.MAX_VALUE) c.inc() else null })))
-        .addOptimiseStep(
-            object : OptimiseStep<Byte, E> {
-                override suspend fun DeepRecursiveScope<ParserF<Byte, E, Any?>, ParserF<Byte, E, Any?>>.step(
-                    p: ParserF<Byte, E, Any?>,
-                    subs: IntMap<ParserF<Byte, E, Any?>>,
-                    settings: CompilerSettings<Byte, E>
-                ): ParserF<Byte, E, Any?> {
-                    return when {
-                        p is parsley.frontend.Satisfy<*> && p.match is BytePredicate && settings.optimise.analyseSatisfy.f.any { true } -> {
-                            val accepted = mutableSetOf<Byte>()
-                            val rejected = mutableSetOf<Byte>()
-                            for (c in settings.optimise.analyseSatisfy.f) {
-                                if (p.match.unsafe<BytePredicate>().invokeP(c))
-                                    accepted.add(c)
-                                else rejected.add(c)
-                            }
-                            parsley.frontend.Satisfy(p.match.unsafe(), p.expected.unsafe(), accepted, rejected)
-                        }
-                        else -> p
-                    }
-                }
-            }
-        )
-        .addCodegenStep(
-            object : CodeGenStep<Byte, E> {
-                override suspend fun DeepRecursiveScope<ParserF<Byte, E, Any?>, Unit>.step(
-                    p: ParserF<Byte, E, Any?>,
-                    ctx: CodeGenContext<Byte, E>
-                ): Boolean {
-                    return when (p) {
-                        is ByteListToArr -> {
-                            callRecursive(p.inner)
-                            if (!ctx.discard) ctx += parsley.backend.instructions.ByteListToArr()
-                            true
-                        }
-                        else -> false
-                    }
-                }
-            }
-        ).addOptimiseStep { s, l -> replaceInstructions(s, l) }
+        .addOptimiseStep { s, l -> replaceInstructions(s, l) }
+        .let {
+            it.copy(optimise = OptimiseSettings(rebuildPredicate = RebuildPredicate { sing, sat ->
+                val charArr = sing.map { it.i }.toByteArray()
+                if (sat.all { it is BytePredicate }) BytePredicate { i -> charArr.contains(i) || sat.any { it.unsafe<BytePredicate>().invokeP(i) } }
+                else BytePredicate { i -> charArr.contains(i) || sat.any { it.invoke(i) } }
+            }))
+        }
     return CompiledByteParser(
         parserF.compile(settings).toTypedArray()
     )
 }
-
 
 internal fun <E> Method<Byte, E>.replaceInstructions(sub: IntMap<Method<Byte, E>>, l: Int): Int {
     replaceMethod()
@@ -105,9 +69,13 @@ fun <E> Method<Byte, E>.replaceMethod() {
     while (curr < size) {
         val el = get(curr)
         when {
+            el is ToNative -> {
+                removeAt(curr)
+                add(curr, ByteListToArr())
+            }
             el is JumpTable -> {
                 removeAt(curr)
-                val map = parsley.collections.IntMap.empty<Int>()
+                val map = IntMap.empty<Int>()
                 el.table.forEach { (k, v) -> map[k.toInt()] = v }
                 val table = ByteJumpTable<E>(map, el.to)
                 table.error.expected = el.error.expected

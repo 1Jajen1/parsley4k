@@ -64,6 +64,12 @@ class Many_<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun toString(): String = "Many_ $to"
 }
 
+class ToNative<I, E> : Instruction<I, E> {
+    override fun apply(machine: AbstractStackMachine<I, E>) {}
+
+    override fun toString(): String = "ToNative"
+}
+
 // Optimised fused variants of Many that loop over the input directly rather than looping through instructions
 class SatisfyMany<I, E>(val f: Predicate<I>) : Instruction<I, E> {
     private var st: MutableList<I>? = null
@@ -161,9 +167,10 @@ class MatchMany_<I, E>(val path: Array<Matcher<I>>) : Instruction<I, E> {
 class MatchManyN_<I, E>(val paths: Array<Array<Matcher<I>>>) : Instruction<I, E>, Errors<I, E> {
     override fun apply(machine: AbstractStackMachine<I, E>) {
         loop@while (true) {
-            for (p in paths) {
+            path@for (p in paths) {
                 if (machine.hasMore(p.size)) {
-                    p.forEachIndexed { ind, m ->
+                    for (ind in p.indices) {
+                        val m = p[ind]
                         val i = machine.take()
                         if (m(i)) {
                             machine.consume()
@@ -171,7 +178,7 @@ class MatchManyN_<I, E>(val paths: Array<Array<Matcher<I>>>) : Instruction<I, E>
                             if (ind != 0) {
                                 unexpected.head = i
                                 return@apply machine.failWith(error)
-                            }
+                            } else continue@path
                         }
                     }
                     continue@loop

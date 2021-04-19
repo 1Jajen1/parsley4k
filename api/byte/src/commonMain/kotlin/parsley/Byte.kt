@@ -1,10 +1,10 @@
 package parsley
 
-import parsley.frontend.ByteListToArr
 import parsley.frontend.Many
 import parsley.frontend.ChunkOf
 import parsley.frontend.MatchOf
 import parsley.frontend.Satisfy
+import parsley.frontend.ToNative
 
 fun Parser.Companion.byte(c: Byte): Parser<Byte, Nothing, Byte> = single(c)
 
@@ -19,16 +19,16 @@ fun Parser.Companion.string(str: String): Parser<Byte, Nothing, String> =
     bytes(str.encodeToByteArray()).map { it.decodeToString() }
 
 fun <E> Parser<Byte, E, Byte>.many(): Parser<Byte, E, ByteArray> =
-    Parser(ByteListToArr(Many(parserF)))
+    Parser(ToNative(Many(parserF)))
 
 fun <E> Parser<Byte, E, Any?>.chunkOf(): Parser<Byte, E, ByteArray> =
-    Parser(ByteListToArr(ChunkOf(parserF)))
+    Parser(ToNative(ChunkOf(parserF)))
 
 fun <E> Parser<Byte, E, Any?>.bytesOf(): Parser<Byte, E, ByteArray> =
     chunkOf()
 
 fun <E, A> Parser<Byte, E, A>.matchOf(): Parser<Byte, E, Pair<ByteArray, A>> =
-    Parser(ByteListToArr<E>(MatchOf(parserF).unsafe()).unsafe())
+    Parser(ToNative<Byte, E, ByteArray>(MatchOf(parserF).unsafe()).unsafe())
 
 fun Parser.Companion.satisfy(expected: Set<ErrorItem<Byte>> = emptySet(), p: BytePredicate): Parser<Byte, Nothing, Byte> =
     Parser(Satisfy(p, expected))

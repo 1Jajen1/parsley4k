@@ -24,6 +24,7 @@ kotlin {
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
                 api project(':api:shared-api')
+                api("org.jetbrains.kotlinx:kotlinx-collections-immutable:$kotlinx_immutable_version")
                 api "kotlin-pretty:kotlin-pretty:0.6.0"
             }
         }

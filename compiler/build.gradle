@@ -6,21 +6,19 @@ kotlin {
     targets.all {
         compilations.all {
             kotlinOptions {
-                freeCompilerArgs += '-Xno-param-assertions'
+                freeCompilerArgs += ["-Xno-param-assertions", "-Xopt-in=kotlin.ExperimentalStdlibApi", "-Xinline-classes"]
             }
         }
     }
     targets.jvm.compilations.all {
         kotlinOptions {
             jvmTarget = "1.8"
-            freeCompilerArgs = ["-Xinline-classes"]
         }
     }
     sourceSets {
         all {
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
-                api("org.jetbrains.kotlinx:kotlinx-collections-immutable:$kotlinx_immutable_version")
                 api project(':compiler:shared-compiler')
             }
         }

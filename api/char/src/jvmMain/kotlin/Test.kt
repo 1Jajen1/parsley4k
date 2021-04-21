@@ -3,6 +3,7 @@ import parsley.alt
 import parsley.char
 import parsley.choice
 import parsley.compile
+import parsley.defaultStringSettings
 import parsley.followedBy
 import parsley.followedByDiscard
 import parsley.hide
@@ -15,6 +16,7 @@ import parsley.pretty
 import parsley.pure
 import parsley.recursive
 import parsley.satisfy
+import parsley.settings.printFinalInstr
 import parsley.some
 import parsley.string
 import parsley.stringOf
@@ -106,6 +108,7 @@ val jsonRootParser = Parser.run {
         )
         .followedByDiscard(char('"'))
         .label("string")
+
     val whitespace = satisfy { c: Char -> c == ' ' || c == '\n' || c == '\t' || c == '\r' }
         .many().void()
         .hide()

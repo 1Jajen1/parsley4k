@@ -11,11 +11,13 @@ import pretty.encloseSep
 import pretty.fillBreak
 import pretty.flatAlt
 import pretty.group
+import pretty.hCat
 import pretty.line
 import pretty.list
 import pretty.nest
 import pretty.plus
 import pretty.pretty
+import pretty.punctuate
 import pretty.softLine
 import pretty.spaced
 import pretty.symbols.comma

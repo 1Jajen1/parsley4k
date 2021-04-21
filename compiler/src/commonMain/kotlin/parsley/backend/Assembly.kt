@@ -7,21 +7,47 @@ import parsley.collections.IntMap
 import parsley.collections.IntSet
 import parsley.unsafe
 
-fun <I, E> assemble(main: MutableList<Instruction<I, E>>, sub: IntMap<MutableList<Instruction<I, E>>>): MutableList<Instruction<I, E>> {
+fun <I, E> assemble(
+    main: Method<I, E>,
+    sub: IntMap<Method<I, E>>
+): Method<I, E> {
+    // inline single calls
+    while (true) {
+        val calls = IntMap.empty<Int>()
+        main.forEach { if (it is Call) calls[it.to] = 1 }
+        sub.forEach { _, m ->
+            m.forEach {
+                if (it is Call) {
+                    if (it.to in calls) calls[it.to] = calls[it.to] + 1
+                    else calls[it.to] = 1
+                }
+            }
+        }
+        calls.filterValues { it == 1 }
+        main.inline(calls.keySet(), sub)
+        sub.forEach { _, it -> it.inline(calls.keySet(), sub) }
+
+        if (calls.size() == 0) break
+    }
+
     // remove dead code
     val seen = IntSet.empty()
     val done = IntSet.empty()
-    main.forEach { if (it is Call) seen.add(it.to) }
+    main.forEach {
+        if (it is Call) seen.add(it.to)
+    }
     while (seen.isNotEmpty()) {
         val next = seen.first()
         seen.remove(next)
-        sub[next].forEach { if (it is Call && done.contains(it.to).not()) seen.add(it.to) }
+        sub[next].forEach {
+            if (it is Call && done.contains(it.to).not()) seen.add(it.to)
+        }
         done.add(next)
     }
 
     sub.filterKeys { done.contains(it) }
 
-    // Check if main is just Call
+    // Inline single top level Call if necessary
     val main = if (main.size == 1 && main[0] is Call) {
         val to = main[0].unsafe<Call<I, E>>().to
         sub[to].apply { add(0, Label(to)) }.also { sub.remove(to) }
@@ -29,11 +55,11 @@ fun <I, E> assemble(main: MutableList<Instruction<I, E>>, sub: IntMap<MutableLis
 
     // splice together the program
     val mutList = mutableListOf<Instruction<I, E>>()
-    mutList.addAll(main)
+    mutList.addAll(main.instructions)
     mutList += Return()
     sub.forEach { key, method ->
         mutList += Label(key)
-        mutList.addAll(method)
+        mutList.addAll(method.instructions)
         mutList += Return()
     }
     // replace labels
@@ -71,5 +97,5 @@ fun <I, E> assemble(main: MutableList<Instruction<I, E>>, sub: IntMap<MutableLis
         }
     }
     mutList.removeAll { it is Label }
-    return mutList
+    return Method(mutList)
 }

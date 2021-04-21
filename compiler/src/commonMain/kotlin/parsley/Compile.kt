@@ -1,26 +1,17 @@
 package parsley
 
-import parsley.backend.CodeGenStep
-import parsley.backend.DefaultCodeGenStep
-import parsley.backend.Instruction
+import parsley.backend.Method
 import parsley.backend.assemble
 import parsley.backend.codeGen
 import parsley.backend.inlinePass
 import parsley.backend.rewriteRules
-import parsley.collections.IntMap
-import parsley.frontend.DefaultInsertLetStep
-import parsley.frontend.DefaultLetBoundStep
-import parsley.frontend.DefaultOptimiseStep
-import parsley.frontend.DefaultRelabelStep
-import parsley.frontend.InsertLetStep
-import parsley.frontend.LetBoundStep
-import parsley.frontend.OptimiseStep
 import parsley.frontend.ParserF
-import parsley.frontend.RelabelStep
-import parsley.frontend.Single
 import parsley.frontend.findLetBound
 import parsley.frontend.insertLets
 import parsley.frontend.optimise
+import parsley.settings.CompilerSettings
+import parsley.settings.SubParsers
+import parsley.settings.defaultSettings
 
 // TODO Parameterize steps
 fun <I, E, A> ParserF<I, E, A>.compile(
@@ -47,7 +38,7 @@ fun <I, E, A> ParserF<I, E, A>.compile(
 
     // Step 2: Optimise AST
     mainP = mainP.optimise(subs, settings.frontend.optimiseSteps, settings)
-    subs = subs.mapValues { v -> v.optimise(subs, settings.frontend.optimiseSteps, settings) }
+    subs = subs.mapValues { v -> v.optimise(subs, settings.frontend.optimiseSteps, settings) }.let(::SubParsers)
 
     if (settings.logging.printOptimisedAST) {
         println("Parser:AST:optimised")
@@ -70,7 +61,7 @@ fun <I, E, A> ParserF<I, E, A>.compile(
         println("Sub methods:")
         subI.forEach { key, method ->
             println("Method label: $key")
-            println(method.showInstructions())
+            println(method)
         }
     }
 
@@ -81,11 +72,11 @@ fun <I, E, A> ParserF<I, E, A>.compile(
     if (settings.logging.printInlinedInstr) {
         println("Parser:Instr:inline:1")
         println("Main method:")
-        println(mainI.showInstructions())
+        println(mainI)
         println("Sub methods:")
         subI.forEach { key, method ->
             println("Method label: $key")
-            println(method.showInstructions())
+            println(method)
         }
     }
 
@@ -100,7 +91,7 @@ fun <I, E, A> ParserF<I, E, A>.compile(
         println("Sub methods:")
         subI.forEach { key, method ->
             println("Method label: $key")
-            println(method.showInstructions())
+            println(method)
         }
     }
 
@@ -113,11 +104,15 @@ fun <I, E, A> ParserF<I, E, A>.compile(
         println("Sub methods:")
         subI.forEach { key, method ->
             println("Method label: $key")
-            println(method.showInstructions())
+            println(method)
         }
     }
 
-    settings.backend.optimiseSteps.fold(l) { acc, f -> f(mainI, subI, acc) }
+    settings.backend.optimiseSteps.fold(l) { acc, (f) ->
+        var nAcc = acc
+        f(mainI, subI) { ++nAcc }
+        nAcc
+    }
 
     if (settings.logging.printOptimisedInstr) {
         println("Parser:Instr:optimise")
@@ -126,7 +121,7 @@ fun <I, E, A> ParserF<I, E, A>.compile(
         println("Sub methods:")
         subI.forEach { key, method ->
             println("Method label: $key")
-            println(method.showInstructions())
+            println(method)
         }
     }
 
@@ -139,7 +134,7 @@ fun <I, E, A> ParserF<I, E, A>.compile(
         println("Sub methods:")
         subI.forEach { key, method ->
             println("Method label: $key")
-            println(method.showInstructions())
+            println(method)
         }
     }
 
@@ -147,146 +142,21 @@ fun <I, E, A> ParserF<I, E, A>.compile(
     return assemble(mainI, subI).also {
         if (settings.logging.printFinalInstr) {
             println("Parser:Instr:final")
-            println(it.showInstructions())
+            println(it)
         }
     }
 }
 
-fun <I, E> ParserF<I, E, Any?>.preprocess(settings: CompilerSettings<I, E>): Triple<ParserF<I, E, Any?>, IntMap<ParserF<I, E, Any?>>, Int> {
-    val (letbound, recursives) = findLetBound(settings.frontend.letfinderSteps)
-    return insertLets(letbound, recursives, settings.frontend.insertletSteps)
+fun <I, E> ParserF<I, E, Any?>.preprocess(settings: CompilerSettings<I, E>): Triple<ParserF<I, E, Any?>, SubParsers<I, E>, Int> {
+    val (letbound, recursives) = findLetBound(settings.frontend.letFinderSteps)
+    return insertLets(letbound, recursives, settings.frontend.insertLetSteps)
 }
 
-data class CompilerSettings<I, E>(
-    val frontend: FrontendSettings<I, E>,
-    val backend: BackendSettings<I, E>,
-    val optimise: OptimiseSettings<I, E>,
-    val logging: LogSettings
-) {
-    fun addLetFindStep(letStep: LetBoundStep<I, E>): CompilerSettings<I, E> =
-        copy(frontend = frontend.copy(letfinderSteps = arrayOf(letStep) + frontend.letfinderSteps))
-
-    fun addLetInsertStep(letStep: InsertLetStep<I, E>): CompilerSettings<I, E> =
-        copy(frontend = frontend.copy(insertletSteps = arrayOf(letStep) + frontend.insertletSteps))
-
-    fun addOptimiseStep(step: OptimiseStep<I, E>): CompilerSettings<I, E> =
-        copy(frontend = frontend.copy(optimiseSteps = arrayOf(step) + frontend.optimiseSteps))
-
-    fun addCodegenStep(step: CodeGenStep<I, E>): CompilerSettings<I, E> =
-        copy(backend = backend.copy(codegenSteps = arrayOf(step) + backend.codegenSteps))
-
-    fun addOptimiseStep(step: BackendOptimiseStep<I, E>): CompilerSettings<I, E> =
-        copy(backend = backend.copy(optimiseSteps = arrayOf(step) + backend.optimiseSteps))
-
-    fun addRelabelStep(step: RelabelStep<I, E>): CompilerSettings<I, E> =
-        copy(frontend = frontend.copy(relabeSteps = arrayOf(step) + frontend.relabeSteps))
-
-    fun hideWarnings(): CompilerSettings<I, E> =
-        copy(logging = logging.copy(showWarnings = false))
-
-    fun printAllStages(): CompilerSettings<I, E> =
-        printInitialAST()
-            .printFixedAST()
-            .printOptimisedAST()
-            .printInitialInstr()
-            .printInlinedInstr()
-            .printRewrittenInstr()
-            .printOptimisedInstr()
-            .printFinalInstr()
-
-    fun printInitialAST(): CompilerSettings<I, E> =
-        copy(logging = logging.copy(printInitialAST = true))
-
-    fun printFixedAST(): CompilerSettings<I, E> =
-        copy(logging = logging.copy(printFixedAST = true))
-
-    fun printOptimisedAST(): CompilerSettings<I, E> =
-        copy(logging = logging.copy(printOptimisedAST = true))
-
-    fun printInitialInstr(): CompilerSettings<I, E> =
-        copy(logging = logging.copy(printInitialInstr = true))
-
-    fun printInlinedInstr(): CompilerSettings<I, E> =
-        copy(logging = logging.copy(printInlinedInstr = true))
-
-    fun printRewrittenInstr(): CompilerSettings<I, E> =
-        copy(logging = logging.copy(printRewrittenRulesInstr = true))
-
-    fun printOptimisedInstr(): CompilerSettings<I, E> =
-        copy(logging = logging.copy(printOptimisedInstr = true))
-
-    fun printFinalInstr(): CompilerSettings<I, E> =
-        copy(logging = logging.copy(printFinalInstr = true))
-}
-
-data class FrontendSettings<I, E>(
-    val letfinderSteps: Array<LetBoundStep<I, E>>,
-    val insertletSteps: Array<InsertLetStep<I, E>>,
-    val optimiseSteps: Array<OptimiseStep<I, E>>,
-    val relabeSteps: Array<RelabelStep<I, E>>
-)
-
-typealias Method<I, E> = MutableList<Instruction<I, E>>
-
-private fun <I, E> Method<I, E>.showInstructions(): String =
-    withIndex().map { (i, instr) -> "($i, $instr)" }.joinToString(", ")
-        .let { "[$it]" }
-
-typealias BackendOptimiseStep<I, E> =
-        Method<I, E>.(IntMap<Method<I, E>>, Int) -> Int
-
-data class BackendSettings<I, E>(
-    val codegenSteps: Array<CodeGenStep<I, E>>,
-    val optimiseSteps: Array<BackendOptimiseStep<I, E>>
-)
-
-data class OptimiseSettings<I, E>(
-    val analyseSatisfy: AnalyseSatisfy<I> = AnalyseSatisfy(),
-    val rebuildPredicate: RebuildPredicate<I> = RebuildPredicate()
-)
-
-data class LogSettings(
-    val showWarnings: Boolean = true,
-    val printInitialAST: Boolean = false,
-    val printFixedAST: Boolean = false,
-    val printOptimisedAST: Boolean = false,
-    val printInitialInstr: Boolean = false,
-    val printInlinedInstr: Boolean = false,
-    val printRewrittenRulesInstr: Boolean = false,
-    val printOptimisedInstr: Boolean = false,
-    val printFinalInstr: Boolean = false
-)
-
-fun <I, E> defaultSettings(): CompilerSettings<I, E> = CompilerSettings(
-    frontend = defaultFrontendSettings(),
-    backend = defaultBackendSettings(),
-    optimise = defaultOptimiseSettings(),
-    logging = defaultLogSettings()
-)
-
-fun <I, E> defaultFrontendSettings(): FrontendSettings<I, E> = FrontendSettings(
-    letfinderSteps = arrayOf(DefaultLetBoundStep()),
-    insertletSteps = arrayOf(DefaultInsertLetStep()),
-    optimiseSteps = arrayOf(DefaultOptimiseStep()),
-    relabeSteps = arrayOf(DefaultRelabelStep())
-)
-
-fun <I, E> defaultBackendSettings(): BackendSettings<I, E> = BackendSettings(
-    codegenSteps = arrayOf(DefaultCodeGenStep()),
-    optimiseSteps = arrayOf()
-)
-
-fun <I, E> defaultOptimiseSettings(): OptimiseSettings<I, E> = OptimiseSettings()
-
-fun defaultLogSettings(): LogSettings = LogSettings()
-
-class AnalyseSatisfy<I>(val f: Sequence<I> = emptySequence())
-
-class RebuildPredicate<I>(
-    val f: (sing: Array<Single<I>>, sat: Array<Predicate<I>>) -> Predicate<I> = { sing, sat ->
-        Predicate { i -> sing.any { it.i == i } || sat.any { it(i) } }
-    }
-)
+/**
+ * Clean up rules: Add rules object (recursive as we want to group them sometimes) and generate that from settings.
+ * Do the same for code gen, so that we have one code gen function per path we can take (and groups as well if needed)
+ * Better failure case analysis. Figure out what the behavior of an each alt in a failure case is and gen accordingly
+ */
 
 /**
  * TODO:

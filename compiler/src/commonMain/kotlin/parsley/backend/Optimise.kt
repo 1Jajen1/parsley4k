@@ -1,20 +1,14 @@
 package parsley.backend
 
-import parsley.Method
 import parsley.backend.instructions.Apply
 import parsley.backend.instructions.Call
 import parsley.backend.instructions.Catch
-import parsley.backend.instructions.InputCheck
 import parsley.backend.instructions.Jump
 import parsley.backend.instructions.JumpGood
 import parsley.backend.instructions.JumpGoodAttempt
 import parsley.backend.instructions.Label
 import parsley.backend.instructions.Map
 import parsley.backend.instructions.Push
-import parsley.backend.instructions.RecoverAttempt
-import parsley.backend.instructions.RecoverAttemptWith
-import parsley.backend.instructions.RecoverWith
-import parsley.backend.instructions.Return
 import parsley.backend.instructions.SatisfyMany
 import parsley.backend.instructions.SatisfyMany_
 import parsley.backend.instructions.SatisfyN_
@@ -39,6 +33,10 @@ fun <I, E> Method<I, E>.rewriteRules(): Method<I, E> {
                 // TODO Test, also move??
                 var j = i + 1
                 while (j < size && get(j) is Label) j++
+                if (j == size) {
+                    i++
+                    continue
+                }
                 val to = when (val el = get(j)) {
                     is JumpGood -> el.to
                     is JumpGoodAttempt -> el.to
@@ -139,21 +137,21 @@ fun <I, E> inlinePass(
 }
 
 // TODO Better heuristics
-fun <I, E> List<Instruction<I, E>>.checkInline(): Boolean =
-    size < 5 && none { it is Call && it.recursive }
+fun <I, E> Method<I, E>.checkInline(): Boolean =
+    size < 5 && instructions.none { it is Call && it.recursive }
 
 fun <I, E> Method<I, E>.inline(
     toInline: IntSet,
     subs: IntMap<Method<I, E>>
 ): Unit {
-    val mutlist = this
+    val mutlist = instructions
     var curr = 0
     while (curr < mutlist.size) {
         val el = mutlist[curr++]
         if (el is Call && toInline.contains(el.to)) {
             mutlist.removeAt(--curr)
             mutlist.add(curr++, Label(el.to))
-            mutlist.addAll(curr, subs[el.to])
+            mutlist.addAll(curr, subs[el.to].instructions)
         }
     }
 }

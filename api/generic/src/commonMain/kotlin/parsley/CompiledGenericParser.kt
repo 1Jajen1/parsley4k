@@ -6,7 +6,7 @@ import parsley.backend.ParseStatus
 
 fun <I, E, A> Parser<I, E, A>.compile(): CompiledGenericParser<I, E, A> =
     CompiledGenericParser(
-        parserF.compile().toTypedArray()
+        parserF.compile().instructions.toTypedArray()
             // .also { println(it.withIndex().map { (i, v) -> i to v }) }
     )
 

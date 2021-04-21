@@ -1,5 +1,7 @@
 package parsley
 
+import parsley.backend.BackendOptimiseStep
+import parsley.backend.Method
 import parsley.backend.instructions.ByteArrToByteList
 import parsley.backend.instructions.ByteEof
 import parsley.backend.instructions.ByteJumpTable
@@ -42,30 +44,35 @@ import parsley.backend.instructions.Single_
 import parsley.backend.instructions.ToNative
 import parsley.backend.instructions.convert
 import parsley.collections.IntMap
+import parsley.settings.CompilerSettings
+import parsley.settings.RebuildPredicate
+import parsley.settings.addOptimiseStep
+import parsley.settings.defaultSettings
+import parsley.settings.setRebuildPredicate
 import kotlin.jvm.JvmName
 
-@JvmName("compileString")
+fun <E> defaultByteSettings(): CompilerSettings<Byte, E> =
+    defaultSettings<Byte, E>()
+        .addOptimiseStep(
+            BackendOptimiseStep { m, s, l -> m.replaceInstructions(s, l) }
+        )
+        .setRebuildPredicate(RebuildPredicate { sing, sat ->
+            val charArr = sing.map { it.i }.toByteArray()
+            if (sat.all { it is BytePredicate }) BytePredicate { i -> charArr.contains(i) || sat.any { it.unsafe<BytePredicate>().invokeP(i) } }
+            else BytePredicate { i -> charArr.contains(i) || sat.any { it.invoke(i) } }
+        })
+
+@JvmName("compileByteArray")
 @OptIn(ExperimentalStdlibApi::class)
 fun <E, A> Parser<Byte, E, A>.compile(): CompiledByteParser<E, A> {
-    val settings = defaultSettings<Byte, E>()
-        //.copy(optimise = OptimiseSettings(analyseSatisfy = AnalyseSatisfy(generateSequence(Byte.MIN_VALUE) { c -> if (c != Byte.MAX_VALUE) c.inc() else null })))
-        .addOptimiseStep { s, l -> replaceInstructions(s, l) }
-        .let {
-            it.copy(optimise = OptimiseSettings(rebuildPredicate = RebuildPredicate { sing, sat ->
-                val charArr = sing.map { it.i }.toByteArray()
-                if (sat.all { it is BytePredicate }) BytePredicate { i -> charArr.contains(i) || sat.any { it.unsafe<BytePredicate>().invokeP(i) } }
-                else BytePredicate { i -> charArr.contains(i) || sat.any { it.invoke(i) } }
-            }))
-        }
     return CompiledByteParser(
-        parserF.compile(settings).toTypedArray()
+        parserF.compile(defaultByteSettings()).instructions.toTypedArray()
     )
 }
 
-internal fun <E> Method<Byte, E>.replaceInstructions(sub: IntMap<Method<Byte, E>>, l: Int): Int {
+internal fun <E> Method<Byte, E>.replaceInstructions(sub: IntMap<Method<Byte, E>>, mkLabel: () -> Int): Unit {
     replaceMethod()
     sub.forEach { _, v -> v.replaceMethod() }
-    return l
 }
 
 fun <E> Method<Byte, E>.replaceMethod() {

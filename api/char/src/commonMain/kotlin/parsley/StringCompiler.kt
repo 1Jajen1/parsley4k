@@ -1,5 +1,7 @@
 package parsley
 
+import parsley.backend.BackendOptimiseStep
+import parsley.backend.Method
 import parsley.backend.instructions.CharEof
 import parsley.backend.instructions.CharJumpTable
 import parsley.backend.instructions.CharListToString
@@ -42,32 +44,35 @@ import parsley.backend.instructions.StringToCharList
 import parsley.backend.instructions.ToNative
 import parsley.backend.instructions.convert
 import parsley.collections.IntMap
+import parsley.settings.CompilerSettings
+import parsley.settings.RebuildPredicate
+import parsley.settings.addOptimiseStep
+import parsley.settings.defaultSettings
+import parsley.settings.printFinalInstr
+import parsley.settings.setRebuildPredicate
 import kotlin.jvm.JvmName
+
+fun <E> defaultStringSettings(): CompilerSettings<Char, E> =
+    defaultSettings<Char, E>()
+        .addOptimiseStep(BackendOptimiseStep { m, s, l -> m.replaceInstructions(s) })
+        .setRebuildPredicate(RebuildPredicate { sing, sat ->
+            val charArr = sing.map { it.i }.toCharArray()
+            if (sat.all { it is CharPredicate }) CharPredicate { i -> charArr.contains(i) || sat.any { it.unsafe<CharPredicate>().invokeP(i) } }
+            else CharPredicate { i -> charArr.contains(i) || sat.any { it.invoke(i) } }
+        })
+        .printFinalInstr()
 
 @JvmName("compileString")
 @OptIn(ExperimentalStdlibApi::class)
 fun <E, A> Parser<Char, E, A>.compile(): CompiledStringParser<E, A> {
-    val settings = defaultSettings<Char, E>()
-        .addOptimiseStep { s, l -> replaceInstructions(s, l) }
-        // .printInlinedInstr()
-        // .printFinalInstr()
-        .let {
-            it.copy(optimise = OptimiseSettings(rebuildPredicate = RebuildPredicate { sing, sat ->
-                val charArr = sing.map { it.i }.toCharArray()
-                if (sat.all { it is CharPredicate }) CharPredicate { i -> charArr.contains(i) || sat.any { it.unsafe<CharPredicate>().invokeP(i) } }
-                else CharPredicate { i -> charArr.contains(i) || sat.any { it.invoke(i) } }
-            }))
-        }
-    // .copy(optimise = OptimiseSettings(analyseSatisfy = AnalyseSatisfy(generateSequence(Char.MIN_VALUE) { c -> if (c != Char.MAX_VALUE) c.inc() else null }))).addOptimiseStep { s, l -> replaceInstructions(s, l) }
     return CompiledStringParser(
-        parserF.compile(settings).toTypedArray()
+        parserF.compile(defaultStringSettings()).instructions.toTypedArray()
     )
 }
 
-internal fun <E> Method<Char, E>.replaceInstructions(sub: IntMap<Method<Char, E>>, l: Int): Int {
+internal fun <E> Method<Char, E>.replaceInstructions(sub: IntMap<Method<Char, E>>): Unit {
     replaceMethod()
     sub.forEach { _, v -> v.replaceMethod() }
-    return l
 }
 
 fun <E> Method<Char, E>.replaceMethod() {

@@ -34,7 +34,7 @@ class Catch<I, E> : Instruction<I, E> {
                 machine.status = ParseStatus.Ok
             } else machine.fail()
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
         }
     }
 
@@ -43,7 +43,7 @@ class Catch<I, E> : Instruction<I, E> {
 
 class JumpGood<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
     override fun apply(machine: AbstractStackMachine<I, E>) {
-        machine.handlerStack.drop()
+        machine.dropHandler()
         machine.inputCheckStack.drop()
         machine.jump(to)
     }
@@ -58,7 +58,7 @@ class ResetOffsetOnFail<I, E> : Instruction<I, E> {
             machine.inputOffset = off
             machine.fail()
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
         }
     }
 
@@ -70,7 +70,7 @@ class ResetOffset<I, E> : Instruction<I, E> {
         val off = machine.inputCheckStack.pop()
         machine.inputOffset = off
         if (machine.status == ParseStatus.Err) machine.fail()
-        else machine.handlerStack.drop()
+        else machine.dropHandler()
     }
 
     override fun toString(): String = "ResetOffset"
@@ -84,7 +84,7 @@ class ResetOnFailAndFailOnOk<I, E> : Instruction<I, E> {
         if (machine.status == ParseStatus.Err) {
             machine.status = ParseStatus.Ok
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
             // TODO error. Maybe use findLeading?
             machine.failWith(error)
         }
@@ -105,7 +105,7 @@ class RecoverWith<I, E>(val el: Any?) : Instruction<I, E> {
                 machine.push(el)
             } else machine.fail()
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
         }
     }
 
@@ -119,7 +119,7 @@ class JumpGoodAttempt<I, E>(override var to: Int) : Instruction<I, E>, Jumps {
             machine.status = ParseStatus.Ok
             machine.inputOffset = checkOff
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
             machine.jump(to)
         }
     }
@@ -135,7 +135,7 @@ class RecoverAttemptWith<I, E>(val el: Any?) : Instruction<I, E> {
             machine.inputOffset = checkOff
             machine.push(el)
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
         }
     }
 
@@ -149,7 +149,7 @@ class RecoverAttempt<I, E> : Instruction<I, E> {
             machine.status = ParseStatus.Ok
             machine.inputOffset = checkOff
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
         }
     }
 
@@ -162,7 +162,7 @@ class CatchEither<I, E> : Instruction<I, E> {
             machine.status = ParseStatus.Ok
             machine.push(Either.left(machine.makeError()))
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
             val top = machine.peek()
             machine.exchange(Either.right(top))
         }
@@ -176,7 +176,7 @@ class AlwaysRecover<I, E> : Instruction<I, E> {
         if (machine.status == ParseStatus.Err) {
             machine.status = ParseStatus.Ok
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
         }
     }
 

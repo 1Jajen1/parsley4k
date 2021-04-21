@@ -13,7 +13,10 @@ abstract class AbstractStackMachine<I, E>(val instructions: Array<Instruction<I,
 
     val dataStack = ArrayStack()
     val returnStack = IntStack()
-    val handlerStack = ArrayStack()
+
+    val handlerPosStack = IntStack()
+    val handlerOffsetStack = IntStack()
+    val handlerReturnOffsetStack = IntStack()
     val inputCheckStack = IntStack()
 
     var errorOffset: Int = 0
@@ -42,17 +45,25 @@ abstract class AbstractStackMachine<I, E>(val instructions: Array<Instruction<I,
     fun exchange(a: Any?): Unit = dataStack.exchange(a)
     fun drop(): Unit = dataStack.drop()
 
-    fun pushHandler(label: Int): Unit =
-        handlerStack.push(Handler(label, dataStack.size(), returnStack.size()))
+    fun pushHandler(label: Int): Unit {
+        handlerPosStack.push(label)
+        handlerOffsetStack.push(dataStack.size())
+        handlerReturnOffsetStack.push(returnStack.size())
+    }
+
+    fun dropHandler() {
+        handlerPosStack.drop()
+        handlerOffsetStack.drop()
+        handlerReturnOffsetStack.drop()
+    }
 
     fun fail(): Unit {
         status = ParseStatus.Err
 
-        if (handlerStack.isNotEmpty()) {
-            val handler = handlerStack.pop().unsafe<Handler>()
-            dataStack.setOffset(handler.dataStackSz)
-            returnStack.setOffset(handler.retStackSz)
-            programCounter = handler.handlerPos
+        if (handlerPosStack.isNotEmpty()) {
+            dataStack.setOffset(handlerOffsetStack.pop())
+            returnStack.setOffset(handlerReturnOffsetStack.pop())
+            programCounter = handlerPosStack.pop()
         } else {
             finalError = makeError()
             programCounter = instructions.size
@@ -172,5 +183,3 @@ sealed class ParseStatus {
     object Suspended : ParseStatus()
     object Err : ParseStatus()
 }
-
-internal data class Handler(val handlerPos: Int, val dataStackSz: Int, val retStackSz: Int)

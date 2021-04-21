@@ -60,7 +60,7 @@ fun <E> defaultStringSettings(): CompilerSettings<Char, E> =
             if (sat.all { it is CharPredicate }) CharPredicate { i -> charArr.contains(i) || sat.any { it.unsafe<CharPredicate>().invokeP(i) } }
             else CharPredicate { i -> charArr.contains(i) || sat.any { it.invoke(i) } }
         })
-        .printFinalInstr()
+        // .printFinalInstr()
 
 @JvmName("compileString")
 @OptIn(ExperimentalStdlibApi::class)

@@ -13,7 +13,7 @@ class PushStringOf<E> : Instruction<Char, E> {
             machine.inputCheckStack.drop()
             machine.fail()
         } else {
-            machine.handlerStack.drop()
+            machine.dropHandler()
             val start = machine.inputCheckStack.pop()
             val end = machine.inputOffset
             machine.push(machine.takeP(start, end).concatToString())

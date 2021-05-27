@@ -1,9 +1,9 @@
 buildscript {
     ext.arrow_version = "0.11.0"
     ext.kotlin_version = "1.5.0-M2"
-    ext.kotlin_benchmark_version = "0.2.0-dev-20"
+    ext.kotlin_benchmark_version = "0.3.1"
     ext.kotlin_serialization_version = "1.0.1"
-    ext.better_parse_version = "0.4.0"
+    ext.better_parse_version = "0.4.2"
     ext.helios_version = "0.2.0"
     ext.confundus_version = "1.0.0"
     ext.kotlinx_immutable_version = "0.3.3"
@@ -12,12 +12,9 @@ buildscript {
         maven {
             url "https://plugins.gradle.org/m2/"
         }
-        maven { url 'https://dl.bintray.com/kotlin/kotlinx' }
-        maven { url 'https://dl.bintray.com/jannis/kotlin-pretty' }
     }
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath "org.jetbrains.kotlinx:kotlinx.benchmark.gradle:$kotlin_benchmark_version"
         classpath "com.jakewharton.confundus:confundus-gradle:$confundus_version"
     }
 }
@@ -27,10 +24,8 @@ subprojects {
     version = "world"
 
     repositories {
-        jcenter()
         mavenCentral()
-
-        maven { url 'https://dl.bintray.com/jannis/kotlin-pretty' }
+        maven { url 'https://jitpack.io' }
     }
 
     apply plugin: 'kotlin-multiplatform'

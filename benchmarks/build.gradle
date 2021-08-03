@@ -2,20 +2,13 @@ plugins {
     id 'org.jetbrains.kotlinx.benchmark' version "$kotlin_benchmark_version"
 }
 
-apply from: rootProject.file("gradle/targets.gradle")
-
 repositories {
     mavenCentral()
 }
 
 kotlin {
-    targets.all {
-        compilations.all {
-            kotlinOptions {
-                freeCompilerArgs += '-Xno-param-assertions'
-            }
-        }
-    }
+    jvm {}
+
     targets.jvm.compilations.all {
         kotlinOptions {
             jvmTarget = "1.8"

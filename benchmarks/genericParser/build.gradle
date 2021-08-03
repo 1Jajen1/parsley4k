@@ -1,13 +1,6 @@
 apply from: rootProject.file("gradle/targets.gradle")
 
 kotlin {
-    targets.all {
-        compilations.all {
-            kotlinOptions {
-                freeCompilerArgs += '-Xno-param-assertions'
-            }
-        }
-    }
     targets.jvm.compilations.all {
         kotlinOptions {
             jvmTarget = "1.8"

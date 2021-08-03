@@ -26,7 +26,7 @@ kotlin {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
                 api project(':api:shared-api')
                 api("org.jetbrains.kotlinx:kotlinx-collections-immutable:$kotlinx_immutable_version")
-                api "com.github.1Jajen1.kotlin-pretty:kotlin-pretty:0.6.0"
+                api "com.github.1Jajen1.kotlin-pretty:kotlin-pretty:5831905377"
             }
         }
     }

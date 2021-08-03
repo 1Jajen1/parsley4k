@@ -1,20 +1,40 @@
+def nativeTargets = [
+        "iosArm32", "iosArm64", "iosX64",
+        "watchosArm32", "watchosArm64", "watchosX86", "watchosX64",
+        "tvosArm64", "tvosX64",
+        "macosX64",
+        "linuxX64",
+        "mingwX64", "mingwX86",
+        "wasm32"
+]
+
 kotlin {
     jvm {}
-    js {
+    js(BOTH) {
         nodejs {}
-        binaries.executable()
+        browser {}
     }
     sourceSets {
         commonMain {
             dependencies {
                 implementation kotlin('stdlib-common')
-                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2"
+                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.1"
             }
         }
         commonTest {
             dependencies {
                 implementation kotlin('test-common')
                 implementation kotlin('test-annotations-common')
+            }
+        }
+        create("nativeMain") {
+            dependsOn commonMain
+        }
+    }
+    nativeTargets.forEach {
+        targetFromPreset(presets[it]) {
+            compilations.getByName("main") {
+                defaultSourceSet.dependsOn(sourceSets["nativeMain"])
             }
         }
     }

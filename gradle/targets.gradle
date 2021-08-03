@@ -31,11 +31,13 @@ kotlin {
             dependsOn commonMain
         }
     }
-    nativeTargets.forEach {
+    // Can't build native atm for abi reasons, this package builds with too new of a compiler for some packages
+    /*nativeTargets.forEach {
         targetFromPreset(presets[it]) {
             compilations.getByName("main") {
                 defaultSourceSet.dependsOn(sourceSets["nativeMain"])
             }
         }
     }
+     */
 }
